@@ -2,6 +2,7 @@ import React from 'react'
 
 export default function cart() {
   return (
-    <div>cart</div>
+    <div>cart page</div>
+
   )
 }

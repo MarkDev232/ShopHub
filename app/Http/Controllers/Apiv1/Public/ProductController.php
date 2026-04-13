@@ -54,7 +54,7 @@ class ProductController extends Controller
         // Status filter - only active products for public
         $query->where('is_active', true);
 
-        $products = $query->paginate(12); 
+        $products = $query->paginate(5); 
 
         // return response()->json([
         //     'data' =>  ProductResource::collection($products),

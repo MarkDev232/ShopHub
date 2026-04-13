@@ -9,7 +9,6 @@ import {
     PaginationLink,
     PaginationNext,
     PaginationPrevious,
-    PaginationEllipsis,
 } from '@/components/ui/pagination';
 import ProductService from '@/services/ProductService';
 import type { Product } from '@/services/ProductService';
@@ -66,70 +65,70 @@ export default function ShopListing() {
             </div>
 
             {/* PAGINATION */}
-{meta.last_page > 1 && (
-    <div className="mt-8 flex justify-center">
-        <Pagination>
-            <PaginationContent>
+            {meta.last_page > 0 && (
+                <div className="mt-8 flex justify-center">
+                    <Pagination>
+                        <PaginationContent className="flex items-center gap-2">
+                            {/* PREVIOUS */}
+                            <PaginationItem>
+                                <PaginationPrevious
+                                    onClick={() =>
+                                        setPage((prev) => Math.max(prev - 1, 1))
+                                    }
+                                    className={`rounded-md border px-4 py-2 transition ${
+                                        meta.current_page === 1
+                                            ? 'text-secondary opacity-40'
+                                            : 'cursor-pointer border-secondary text-secondary hover:bg-blue-50'
+                                    }`}
+                                />
+                            </PaginationItem>
 
-                {/* PREVIOUS */}
-                <PaginationItem>
-                    <PaginationPrevious
-                        onClick={() =>
-                            setPage((prev) => Math.max(prev - 1, 1))
-                        }
-                        className={
-                            meta.current_page === 1
-                                ? "pointer-events-none opacity-50"
-                                : "cursor-pointer"
-                        }
-                    />
-                </PaginationItem>
-
-                {/* PAGE NUMBERS */}
-                {Array.from({ length: meta.last_page }, (_, i) => i + 1)
-                    .slice(
-                        Math.max(0, meta.current_page - 3),
-                        Math.min(meta.last_page, meta.current_page + 2)
-                    )
-                    .map((pageNum) => (
-                        <PaginationItem key={pageNum}>
-                            <PaginationLink
-                                isActive={pageNum === meta.current_page}
-                                onClick={() => setPage(pageNum)}
-                                className="cursor-pointer"
-                            >
-                                {pageNum}
-                            </PaginationLink>
-                        </PaginationItem>
-                    ))}
-
-                {/* ELLIPSIS (simple version) */}
-                {meta.last_page > meta.current_page + 2 && (
-                    <PaginationItem>
-                        <PaginationEllipsis />
-                    </PaginationItem>
-                )}
-
-                {/* NEXT */}
-                <PaginationItem>
-                    <PaginationNext
-                        onClick={() =>
-                            setPage((prev) =>
-                                Math.min(prev + 1, meta.last_page)
+                            {/* PAGE NUMBERS */}
+                            {Array.from(
+                                { length: meta.last_page },
+                                (_, i) => i + 1,
                             )
-                        }
-                        className={
-                            meta.current_page === meta.last_page
-                                ? "pointer-events-none opacity-50"
-                                : "cursor-pointer"
-                        }
-                    />
-                </PaginationItem>
+                                .slice(
+                                    Math.max(0, meta.current_page - 3),
+                                    Math.min(
+                                        meta.last_page,
+                                        meta.current_page + 2,
+                                    ),
+                                )
+                                .map((pageNum) => (
+                                    <PaginationItem key={pageNum}>
+                                        <PaginationLink
+                                            onClick={() => setPage(pageNum)}
+                                            className={`flex h-10 w-10 items-center justify-center rounded-md border font-medium transition ${
+                                                pageNum === meta.current_page
+                                                    ? 'border-secondary bg-secondary text-primary shadow-md'
+                                                    : 'border-secondary text-secondary hover:bg-black hover:text-secondary'
+                                            }`}
+                                        >
+                                            {pageNum}
+                                        </PaginationLink>
+                                    </PaginationItem>
+                                ))}
 
-            </PaginationContent>
-        </Pagination>
-    </div>
-)}
+                            {/* NEXT */}
+                            <PaginationItem>
+                                <PaginationNext
+                                    onClick={() =>
+                                        setPage((prev) =>
+                                            Math.min(prev + 1, meta.last_page),
+                                        )
+                                    }
+                                    className={`rounded-md border px-4 py-2 transition ${
+                                        meta.current_page === meta.last_page
+                                            ? 'text-secondary opacity-40'
+                                            : 'cursor-pointer border-secondary text-secondary hover:bg-blue-50'
+                                    }`}
+                                />
+                            </PaginationItem>
+                        </PaginationContent>
+                    </Pagination>
+                </div>
+            )}
         </div>
     );
 }

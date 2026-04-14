@@ -15,6 +15,7 @@ return new class extends Migration
         Schema::create('seller_profiles', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->string('business_license')->nullable();
             $table->string('store_name')->required();
             $table->text('store_description')->nullable();
             $table->string('store_logo')->nullable();

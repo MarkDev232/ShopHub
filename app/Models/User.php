@@ -35,6 +35,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
+    public function sellerProfile()
+    {
+        return $this->hasOne(SellerProfile::class);
+    }
     public function isnotAdmin(): bool
     {
         return $this->role != "admin";

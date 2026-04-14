@@ -11,6 +11,7 @@ import {
     ClipboardCheck,
     Ticket,
     ShoppingBag,
+    Store,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
@@ -55,7 +56,7 @@ import {
 
 import { orders as customerOrders } from '@/routes/customer';
 
-import { products as sellerProducts } from '@/routes/seller';
+import { products as sellerProducts, store as sellerStore} from '@/routes/seller';
 
 import type { BreadcrumbItem, NavItem } from '@/types';
 
@@ -120,6 +121,16 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                 break;
             case 'seller':
                 baseItems.push(
+                    {
+                        title: 'Dashboard',
+                        href: dashboard(),
+                        icon: LayoutGrid,
+                    },
+                    {
+                        title: 'Store',
+                        href: sellerStore(),
+                        icon: Store,
+                    },
                     {
                         title: 'Products',
                         href: sellerProducts(),

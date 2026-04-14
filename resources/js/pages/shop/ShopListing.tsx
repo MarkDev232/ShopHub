@@ -78,7 +78,7 @@ export default function ShopListing() {
                                     className={`rounded-md border px-4 py-2 transition ${
                                         meta.current_page === 1
                                             ? 'text-secondary opacity-40'
-                                            : 'cursor-pointer border-secondary text-secondary hover:bg-blue-50'
+                                            : 'cursor-pointer border-secondary text-secondary hover:bg-secondary'
                                     }`}
                                 />
                             </PaginationItem>
@@ -98,10 +98,11 @@ export default function ShopListing() {
                                 .map((pageNum) => (
                                     <PaginationItem key={pageNum}>
                                         <PaginationLink
+                                   
                                             onClick={() => setPage(pageNum)}
                                             className={`flex h-10 w-10 items-center justify-center rounded-md border font-medium transition ${
                                                 pageNum === meta.current_page
-                                                    ? 'border-secondary bg-secondary text-primary shadow-md'
+                                                    ? 'border-secondary bg-secondary hover:bg-primary text-primaryshadow-md'
                                                     : 'border-secondary text-secondary hover:bg-black hover:text-secondary'
                                             }`}
                                         >
@@ -121,7 +122,7 @@ export default function ShopListing() {
                                     className={`rounded-md border px-4 py-2 transition ${
                                         meta.current_page === meta.last_page
                                             ? 'text-secondary opacity-40'
-                                            : 'cursor-pointer border-secondary text-secondary hover:bg-blue-50'
+                                            : 'cursor-pointer border-secondary text-secondary hover:secondary'
                                     }`}
                                 />
                             </PaginationItem>

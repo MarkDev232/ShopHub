@@ -8,7 +8,6 @@ import {
     CreditCardIcon,
     FileTextIcon,
     PhoneIcon,
-    
 } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
@@ -126,6 +125,11 @@ export default function Register() {
                         {({ processing, errors }) => (
                             <>
                                 <div className="grid gap-5">
+                                    <input
+                                        type="hidden"
+                                        name="role"
+                                        value="customer"
+                                    />
                                     {/* Name Field */}
                                     <div className="grid gap-2">
                                         <Label
@@ -324,9 +328,8 @@ export default function Register() {
                 {accountType === 'seller' && (
                     <Form
                         method="post"
-                        action="/register/seller"
+                        action="/register"
                         encType="multipart/form-data"
-                        className="flex max-h-150 flex-col gap-6 overflow-y-auto pr-2"
                     >
                         {({ processing, errors }) => (
                             <>
@@ -339,6 +342,11 @@ export default function Register() {
                                         </h3>
 
                                         <div className="grid gap-4">
+                                            <input
+                                                type="hidden"
+                                                name="role"
+                                                value="seller"
+                                            />
                                             <div className="grid gap-2">
                                                 <Label
                                                     htmlFor="seller_name"
@@ -355,7 +363,7 @@ export default function Register() {
                                                     required
                                                     name="name"
                                                     placeholder="John Doe"
-                                                    className="h-10"
+                                                    className="h-10 text-secondary"
                                                 />
                                                 <InputError
                                                     message={errors.name}
@@ -378,7 +386,7 @@ export default function Register() {
                                                     required
                                                     name="email"
                                                     placeholder="business@example.com"
-                                                    className="h-10"
+                                                    className="h-10 text-secondary"
                                                 />
                                                 <InputError
                                                     message={errors.email}
@@ -401,7 +409,7 @@ export default function Register() {
                                                     required
                                                     name="phone"
                                                     placeholder="+1 234 567 8900"
-                                                    className="h-10"
+                                                    className="h-10 text-secondary"
                                                 />
                                                 <InputError
                                                     message={errors.phone}
@@ -423,7 +431,7 @@ export default function Register() {
                                                     required
                                                     name="password"
                                                     placeholder="Create a password"
-                                                    className="h-10"
+                                                    className="h-10 text-secondary"
                                                 />
                                                 <InputError
                                                     message={errors.password}
@@ -445,7 +453,7 @@ export default function Register() {
                                                     required
                                                     name="password_confirmation"
                                                     placeholder="Confirm password"
-                                                    className="h-10"
+                                                    className="h-10 text-secondary"
                                                 />
                                                 <InputError
                                                     message={
@@ -467,7 +475,7 @@ export default function Register() {
                                             <div className="grid gap-2">
                                                 <Label
                                                     htmlFor="store_name"
-                                                    className="text-sm font-semibold text-gray-900 "
+                                                    className="text-sm font-semibold text-gray-900"
                                                 >
                                                     Store Name{' '}
                                                     <span className="text-red-500">
@@ -480,7 +488,7 @@ export default function Register() {
                                                     required
                                                     name="store_name"
                                                     placeholder="Amazing Electronics Store"
-                                                    className="h-10"
+                                                    className="h-10 text-secondary"
                                                 />
                                                 <InputError
                                                     message={errors.store_name}
@@ -502,7 +510,7 @@ export default function Register() {
                                                     name="store_description"
                                                     required
                                                     rows={4}
-                                                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                                                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-secondary focus:border-transparent focus:ring-2 focus:ring-purple-500 focus:outline-none"
                                                     placeholder="Tell customers about your store, what products you sell, and why they should buy from you..."
                                                 />
                                                 <p className="text-xs text-gray-500">
@@ -621,7 +629,7 @@ export default function Register() {
                                                     id="bank_name"
                                                     name="bank_name"
                                                     required
-                                                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none text-gray-900"
+                                                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                                                 >
                                                     <option value="">
                                                         Select Bank
@@ -670,7 +678,7 @@ export default function Register() {
                                                     required
                                                     name="bank_account_name"
                                                     placeholder="Name as it appears on bank account"
-                                                    className="h-10"
+                                                    className="h-10 text-secondary"
                                                 />
                                                 <InputError
                                                     message={
@@ -695,7 +703,7 @@ export default function Register() {
                                                     required
                                                     name="bank_account_number"
                                                     placeholder="1234567890"
-                                                    className="h-10"
+                                                    className="h-10 text-secondary"
                                                 />
                                                 <InputError
                                                     message={
@@ -784,7 +792,5 @@ function UploadIcon(props: React.SVGProps<SVGSVGElement>) {
 // Layout configuration
 Register.layout = {
     title: 'Create an account',
-    description:
-        
-   'Join thousands of happy shoppers on our platform',
+    description: 'Join thousands of happy shoppers on our platform',
 };

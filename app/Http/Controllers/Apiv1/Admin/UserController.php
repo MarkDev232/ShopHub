@@ -12,12 +12,18 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::query();
+        $query = User::query()
+            ->where('role', '!=', 'admin')
+            ->with('sellerProfile'); // ✅ IMPORTANT
 
-        // Exclude admin users (or adjust based on your needs)
-        $query->where('role', '!=', 'admin');
+        // ✅ Filter seller status
+        if ($request->filled('seller_status')) {
+            $query->whereHas('sellerProfile', function ($q) use ($request) {
+                $q->where('status', $request->seller_status);
+            });
+        }
 
-        // Apply search filter
+        // 🔍 Search
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -26,14 +32,13 @@ class UserController extends Controller
             });
         }
 
-        // Apply role filter
+        // 🎭 Role filter
         if ($request->filled('role') && $request->role !== 'all') {
             $query->where('role', $request->role);
         }
 
-        // Apply status filter (is_active)
+        // ✅ Active filter
         if ($request->filled('is_active') && $request->is_active !== 'all') {
-            // Convert string 'true' / 'false' to boolean
             $isActive = $request->is_active === 'true' || $request->is_active === true ? 1 : 0;
             $query->where('is_active', $isActive);
         }
@@ -58,6 +63,16 @@ class UserController extends Controller
                 'prev' => $users->previousPageUrl(),
                 'next' => $users->nextPageUrl(),
             ]
+        ], 200);
+    }
+
+    public function getUserById(string $id)
+    {
+        $user = User::with('sellerProfile')->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => new UserResource($user),
         ], 200);
     }
 
@@ -101,6 +116,30 @@ class UserController extends Controller
             'success' => true,
             'message' => 'User status updated successfully',
             'data' => new UserResource($user)
+        ]);
+    }
+
+    public function approve(User $user)
+    {
+        $profile = $user->sellerProfile;
+
+        $profile->approve();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Seller approved'
+        ]);
+    }
+
+    public function reject(Request $request, User $user)
+    {
+        $profile = $user->sellerProfile;
+
+        $profile->reject($request->admin_notes);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Seller rejected'
         ]);
     }
 }

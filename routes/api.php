@@ -44,14 +44,17 @@ Route::get('/shop/product/{id}', [ShopController::class, 'getSingleProduct'])->n
 Route::get('/categories/all', [AdminCategoryController::class, 'withoutpagingtion'])->name('categories.all');
 Route::get('/categories/child', [AdminCategoryController::class, 'getAllChildCategory'])->name('categories.child');
 
-Route::middleware(['auth:sanctum', 'auth.debug','verified'])->group(function () {
+Route::middleware(['auth:sanctum', 'auth.debug', 'verified'])->group(function () {
 
 
     Route::middleware(['role:admin'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/users', [AdminUserController::class, 'index']);
         Route::put('/users/{user}', [AdminUserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
+        Route::get('/user/{id}', [AdminUserController::class, 'getUserById']);
         Route::patch('/users/{user}/status', [AdminUserController::class, 'updateStatus'])->name('users.status');
+        Route::post('/sellers/{user}/approve', [AdminUserController::class, 'approve']);
+        Route::post('/sellers/{user}/reject', [AdminUserController::class, 'reject']);
 
         Route::get('/categories', [AdminCategoryController::class, 'index']);
         Route::get('/categories/{category}', [AdminCategoryController::class, 'show'])->name('categories.show');

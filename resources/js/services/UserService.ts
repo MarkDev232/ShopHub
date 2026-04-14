@@ -1,4 +1,5 @@
 import axios from '@/lib/axios';
+import type { Seller_Profile } from '@/types/sellerProfile';
 
 export interface User {
     id: number;
@@ -8,6 +9,8 @@ export interface User {
     is_active: boolean;
     role: string;
     created_at: string;
+
+    seller_profile?: Seller_Profile | null;
 }
 
 export interface UsersResponse {
@@ -25,6 +28,7 @@ interface FetchUsersParams {
     role?: string;
     is_active?: boolean | 'all';
     page?: number;
+    seller_status?: string;
 }
 
 const UserService = {
@@ -32,9 +36,14 @@ const UserService = {
         const response = await axios.get('/api/admin/users', {
             params,
         });
-        console.log(response);
-        
+
         return response.data;
+    },
+
+    async getUserById(id: number): Promise<User> {
+        const response = await axios.get(`/api/admin/user/${id}`);
+
+        return response.data.data; // ✅ FIX HERE
     },
 
     async deleteUser(id: number) {

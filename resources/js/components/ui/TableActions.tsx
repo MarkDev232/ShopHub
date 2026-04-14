@@ -1,4 +1,4 @@
-import { MoreHorizontalIcon, Trash, Pencil, Eye } from "lucide-react";
+import { MoreHorizontalIcon, Trash, Pencil, Eye, FileInput } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,13 +15,16 @@ type TableActionsProps = {
     onDelete?: () => void;
     onDuplicate?: () => void;
     onView?: () => void;
+    onReview?: () => void;
 };
 
 export default function TableActions({
     onEdit,
     onDelete,
     onDuplicate,
-    onView
+    onView,
+    onReview,
+    
 }: TableActionsProps) {
     return (
         <DropdownMenu>
@@ -32,6 +35,13 @@ export default function TableActions({
             </DropdownMenuTrigger>
 
             <DropdownMenuContent align="end">
+                {onReview && (
+                    <DropdownMenuItem onClick={onReview}
+                       >
+                        <FileInput  className="size-4 mr-2 text-green-600 hover:text-primary" />
+                        Review Application
+                    </DropdownMenuItem>
+                )}
                 {onView && (
                     <DropdownMenuItem onClick={onView}
                        >

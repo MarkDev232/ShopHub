@@ -1,5 +1,6 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+
 import DataTable from '@/components/ui/DataTable';
 import {
     Select,
@@ -15,6 +16,13 @@ import { users } from '@/routes/admin';
 
 import type { User } from '@/services/UserService';
 import UserService from '@/services/UserService';
+
+const statusLabel = {
+    pending: 'Pending Review',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    suspended: 'Suspended',
+};
 
 export default function Users() {
     const [usersData, setUsersData] = useState<User[]>([]);
@@ -40,6 +48,7 @@ export default function Users() {
         fetchUsers();
     }, []);
 
+    const needsReview = (user: User) => user.role === 'seller';
     const fetchUsers = async (page = 1) => {
         setLoading(true);
 
@@ -115,14 +124,64 @@ export default function Users() {
             ),
         },
         {
+            label: 'Business Status',
+            render: (user: User) => {
+                if (user.role !== 'seller') {
+                    return (
+                        <div className="flex">
+                            <span className="text-xs text-gray-400">N/A</span>
+                        </div>
+                    );
+                }
+
+                const status = user.seller_profile?.status;
+
+                if (!status) {
+                    return (
+                        <div className="flex">
+                            <span className="text-xs text-gray-400">—</span>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div className="justify flex">
+                        <span
+                            className={`rounded-full px-2 py-1 text-xs ${
+                                status === 'approved'
+                                    ? 'bg-green-100 text-green-700'
+                                    : status === 'pending'
+                                      ? 'bg-yellow-100 text-yellow-700'
+                                      : status === 'rejected'
+                                        ? 'bg-red-100 text-red-700'
+                                        : 'bg-gray-100 text-gray-700'
+                            }`}
+                        >
+                            {statusLabel[status as keyof typeof statusLabel] ??
+                                status}
+                        </span>
+                    </div>
+                );
+            },
+        },
+        {
             label: 'Action',
             className: 'text-left',
-            render: (user: User) => (
-                <TableActions
-                    onEdit={() => console.log('Edit', user.id)}
-                    onDelete={() => console.log('Delete', user.id)}
-                />
-            ),
+            render: (user: User) =>
+                needsReview(user) ? (
+                    <TableActions
+                        onReview={() =>
+                            router.visit(`/admin/seller/${user.id}/review`)
+                        }
+                        onEdit={() => console.log('Edit', user.id)}
+                        onDelete={() => console.log('Delete', user.id)}
+                    />
+                ) : (
+                    <TableActions
+                        onEdit={() => console.log('Edit', user.id)}
+                        onDelete={() => console.log('Delete', user.id)}
+                    />
+                ),
         },
     ];
 
@@ -139,7 +198,6 @@ export default function Users() {
                             Manage your platform users
                         </p>
                     </div>
-
                     {/* Search & Filters */}
                     <div className="flex flex-col gap-2 sm:flex-row">
                         <input
@@ -210,6 +268,13 @@ export default function Users() {
                             Apply
                         </button>
                     </div>
+
+                    <button
+                        onClick={() => router.visit('/admin/sellers/review')}
+                        className="flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600"
+                    >
+                        Review Applications →
+                    </button>
                 </div>
 
                 {/* Table */}

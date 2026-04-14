@@ -13,6 +13,8 @@ Route::inertia('/', 'welcome', [
 
 Route::inertia('/shop', 'shop/ShopListing')->name('shop');
 // Route::innertia('/cart','shop/cart')->name('cart');
+Route::inertia('/shop/singleproduct', 'shop/SingleProduct')->name('singleproduct');
+
 
 // Main dashboard redirect route
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -46,6 +48,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'categoryId' => $id
             ]);
         })->name('edit-category');
+        Route::get('/seller/{id}/review', function ($id) {
+            return Inertia::render('admin/User/Review', [
+                'userId' => $id
+            ]);
+        })->name('review-seller');
+
+        
         Route::inertia('/products', 'admin/Products')->name('products');
         Route::inertia('/settings', 'admin/Report')->name('report');
         Route::inertia('/coupon', 'admin/Coupon')->name('coupon');
@@ -53,6 +62,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Seller routes
     Route::middleware(['role:seller'])->prefix('seller')->name('seller.')->group(function () {
+        Route::inertia('/store', 'seller/store/Store')->name('store');
         Route::inertia('/dashboard', 'seller/dashboard')->name('dashboard');
         Route::inertia('/products', 'seller/Product/Products')->name('products');
         Route::inertia('/add-product', 'seller/Product/AddProduct')->name('add-product');

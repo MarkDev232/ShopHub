@@ -58,4 +58,8 @@ class ProductController extends Controller
 
         return ProductResource::collection($products);
     }
+
+    public function show(string $id ){
+        
+    }
 }

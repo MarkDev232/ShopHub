@@ -1,0 +1,2448 @@
+[33mcommit 1d6f2c9a86aeb158ba60dd68aa704663cc7b61df[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/singleproduct[m[33m, [m[1;31morigin/refactor/everything[m[33m, [m[1;32mrefactor/everything[m[33m, [m[1;32mmain[m[33m)[m
+Author: MarkDev232 <marksauquillo3@gmail.com>
+Date:   Tue Apr 14 19:00:51 2026 +0800
+
+    refactor: change many in my code so i can't describe what is it
+
+[1mdiff --git a/app/Actions/Fortify/CreateNewUser.php b/app/Actions/Fortify/CreateNewUser.php[m
+[1mindex b2341a6..9f51144 100644[m
+[1m--- a/app/Actions/Fortify/CreateNewUser.php[m
+[1m+++ b/app/Actions/Fortify/CreateNewUser.php[m
+[36m@@ -2,10 +2,14 @@[m
+ [m
+ namespace App\Actions\Fortify;[m
+ [m
+[32m+[m[32muse Illuminate\Http\UploadedFile;[m
+ use App\Concerns\PasswordValidationRules;[m
+ use App\Concerns\ProfileValidationRules;[m
+ use App\Models\User;[m
+[32m+[m[32muse App\Models\SellerProfile;[m
+ use Illuminate\Support\Facades\Validator;[m
+[32m+[m[32muse Illuminate\Support\Facades\Hash;[m
+[32m+[m[32muse Illuminate\Support\Facades\DB;[m
+ use Laravel\Fortify\Contracts\CreatesNewUsers;[m
+ [m
+ class CreateNewUser implements CreatesNewUsers[m
+[36m@@ -23,15 +27,48 @@[m [mpublic function create(array $input): User[m
+             ...$this->profileRules(),[m
+             'password' => $this->passwordRules(),[m
+             'phone' => ['nullable', 'string', 'max:20'],[m
+[31m-            'role' => ['string', 'in:customer,seller'],[m
+[32m+[m[32m            'role' => ['required', 'string', 'in:customer,seller'],[m
+[32m+[m[32m            'business_license' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],[m
+         ])->validate();[m
+ [m
+[31m-        return User::create([[m
+[31m-            'name' => $input['name'],[m
+[31m-            'email' => $input['email'],[m
+[31m-            'password' => $input['password'],[m
+[31m-            'phone' => $input['phone'] ?? null,[m
+[31m-            'role' => 'customer', // Set default role as customer[m
+[31m-        ]);[m
+[32m+[m[32m        return DB::transaction(function () use ($input) {[m
+[32m+[m
+[32m+[m[32m            // 1. Create User[m
+[32m+[m[32m            $user = User::create([[m
+[32m+[m[32m                'name' => $input['name'],[m
+[32m+[m[32m                'email' => $input['email'],[m
+[32m+[m[32m                'password' => Hash::make($input['password']),[m
+[32m+[m[32m                'phone' => $input['phone'] ?? null,[m
+[32m+[m[32m                'role' => $input['role'],[m[41m [m
+[32m+[m[32m            ]);[m
+[32m+[m
+[32m+[m[32m            // 2. If seller → create seller profile[m
+[32m+[m[32m            if ($input['role'] === 'seller') {[m
+[32m+[m
+[32m+[m[32m                $sellerProfile = SellerProfile::updateOrCreate([m
+[32m+[m[32m                    ['user_id' => $user->id],[m
+[32m+[m[32m                    [[m
+[32m+[m[32m                        'store_name' => $input['store_name'] ?? null,[m
+[32m+[m[32m                        'store_description' => $input['store_description'] ?? null,[m
+[32m+[m[32m                        'bank_name' => $input['bank_name'] ?? null,[m
+[32m+[m[32m                        'bank_account_name' => $input['bank_account_name'] ?? null,[m
+[32m+[m[32m                        'bank_account_number' => $input['bank_account_number'] ?? null,[m
+[32m+[m[32m                        'status' => 'pending',[m
+[32m+[m[32m                        'is_approved' => false,[m
+[32m+[m[32m                    ][m
+[32m+[m[32m                );[m
+[32m+[m
+[32m+[m
+[32m+[m[32m                if (!empty($input['business_license']) && $input['business_license'] instanceof UploadedFile) {[m
+[32m+[m[32m                    $path = $input['business_license']->store('seller-documents', 'public');[m
+[32m+[m
+[32m+[m[32m                    $sellerProfile->update([[m
+[32m+[m[32m                        'business_license' => $path,[m
+[32m+[m[32m                    ]);[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m
+[32m+[m[32m            return $user;[m
+[32m+[m[32m        });[m
+     }[m
+[31m-}[m
+\ No newline at end of file[m
+[32m+[m[32m}[m
+[1mdiff --git a/app/Http/Controllers/Apiv1/Admin/SellerProfileController.php b/app/Http/Controllers/Apiv1/Admin/SellerProfileController.php[m
+[1mnew file mode 100644[m
+[1mindex 0000000..0f9107f[m
+[1m--- /dev/null[m
+[1m+++ b/app/Http/Controllers/Apiv1/Admin/SellerProfileController.php[m
+[36m@@ -0,0 +1,11 @@[m
+[32m+[m[32m<?php[m
+[32m+[m
+[32m+[m[32mnamespace App\Http\Controllers\Apiv1\Admin;[m
+[32m+[m
+[32m+[m[32muse App\Http\Controllers\Controller;[m
+[32m+[m[32muse Illuminate\Http\Request;[m
+[32m+[m
+[32m+[m[32mclass SellerProfileController extends Controller[m
+[32m+[m[32m{[m
+[32m+[m[41m    [m
+[32m+[m[32m}[m
+[1mdiff --git a/app/Http/Controllers/Apiv1/Admin/UserController.php b/app/Http/Controllers/Apiv1/Admin/UserController.php[m
+[1mindex 1cce686..3f25993 100644[m
+[1m--- a/app/Http/Controllers/Apiv1/Admin/UserController.php[m
+[1m+++ b/app/Http/Controllers/Apiv1/Admin/UserController.php[m
+[36m@@ -12,12 +12,18 @@[m [mclass UserController extends Controller[m
+ {[m
+     public function index(Request $request)[m
+     {[m
+[31m-        $query = User::query();[m
+[31m-[m
+[31m-        // Exclude admin users (or adjust based on your needs)[m
+[31m-        $query->where('role', '!=', 'admin');[m
+[32m+[m[32m        $query = User::query()[m
+[32m+[m[32m            ->where('role', '!=', 'admin')[m
+[32m+[m[32m            ->with('sellerProfile'); // ✅ IMPORTANT[m
+[32m+[m
+[32m+[m[32m        // ✅ Filter seller status[m
+[32m+[m[32m        if ($request->filled('seller_status')) {[m
+[32m+[m[32m            $query->whereHas('sellerProfile', function ($q) use ($request) {[m
+[32m+[m[32m                $q->where('status', $request->seller_status);[m
+[32m+[m[32m            });[m
+[32m+[m[32m        }[m
+ [m
+[31m-        // Apply search filter[m
+[32m+[m[32m        // 🔍 Search[m
+         if ($request->filled('search')) {[m
+             $search = $request->search;[m
+             $query->where(function ($q) use ($search) {[m
+[36m@@ -26,14 +32,13 @@[m [mpublic function index(Request $request)[m
+             });[m
+         }[m
+ [m
+[31m-        // Apply role filter[m
+[32m+[m[32m        // 🎭 Role filter[m
+         if ($request->filled('role') && $request->role !== 'all') {[m
+             $query->where('role', $request->role);[m
+         }[m
+ [m
+[31m-        // Apply status filter (is_active)[m
+[32m+[m[32m        // ✅ Active filter[m
+         if ($request->filled('is_active') && $request->is_active !== 'all') {[m
+[31m-            // Convert string 'true' / 'false' to boolean[m
+             $isActive = $request->is_active === 'true' || $request->is_active === true ? 1 : 0;[m
+             $query->where('is_active', $isActive);[m
+         }[m
+[36m@@ -61,6 +66,16 @@[m [mpublic function index(Request $request)[m
+         ], 200);[m
+     }[m
+ [m
+[32m+[m[32m    public function getUserById(string $id)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        $user = User::with('sellerProfile')->findOrFail($id);[m
+[32m+[m
+[32m+[m[32m        return response()->json([[m
+[32m+[m[32m            'success' => true,[m
+[32m+[m[32m            'data' => new UserResource($user),[m
+[32m+[m[32m        ], 200);[m
+[32m+[m[32m    }[m
+[32m+[m
+     public function update(Request $request, User $user)[m
+     {[m
+         $validated = $request->validate([[m
+[36m@@ -103,4 +118,28 @@[m [mpublic function updateStatus(Request $request, User $user)[m
+             'data' => new UserResource($user)[m
+         ]);[m
+     }[m
+[32m+[m
+[32m+[m[32m    public function approve(User $user)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        $profile = $user->sellerProfile;[m
+[32m+[m
+[32m+[m[32m        $profile->approve();[m
+[32m+[m
+[32m+[m[32m        return response()->json([[m
+[32m+[m[32m            'success' => true,[m
+[32m+[m[32m            'message' => 'Seller approved'[m
+[32m+[m[32m        ]);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    public function reject(Request $request, User $user)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        $profile = $user->sellerProfile;[m
+[32m+[m
+[32m+[m[32m        $profile->reject($request->admin_notes);[m
+[32m+[m
+[32m+[m[32m        return response()->json([[m
+[32m+[m[32m            'success' => true,[m
+[32m+[m[32m            'message' => 'Seller rejected'[m
+[32m+[m[32m        ]);[m
+[32m+[m[32m    }[m
+ }[m
+[1mdiff --git a/app/Http/Controllers/Apiv1/Public/ProductController.php b/app/Http/Controllers/Apiv1/Public/ProductController.php[m
+[1mindex a944764..9263446 100644[m
+[1m--- a/app/Http/Controllers/Apiv1/Public/ProductController.php[m
+[1m+++ b/app/Http/Controllers/Apiv1/Public/ProductController.php[m
+[36m@@ -56,16 +56,6 @@[m [mpublic function index(Request $request)[m
+ [m
+         $products = $query->paginate(5); [m
+ [m
+[31m-        // return response()->json([[m
+[31m-        //     'data' =>  ProductResource::collection($products),[m
+[31m-        //     'meta' => [[m
+[31m-        //         'current_page'  => $products->currentPage(),[m
+[31m-        //         'last_page'     => $products->lastPage(),[m
+[31m-        //         'per_page'      => $products->perage(),[m
+[31m-        //         'total'         => $products->total(),[m
+[31m-        //     ],[m
+[31m-        // ]);[m
+[31m-[m
+         return ProductResource::collection($products);[m
+     }[m
+ }[m
+[1mdiff --git a/app/Http/Middleware/HandleInertiaRequests.php b/app/Http/Middleware/HandleInertiaRequests.php[m
+[1mindex f4cc770..c7488e9 100644[m
+[1m--- a/app/Http/Middleware/HandleInertiaRequests.php[m
+[1m+++ b/app/Http/Middleware/HandleInertiaRequests.php[m
+[36m@@ -42,6 +42,11 @@[m [mpublic function share(Request $request): array[m
+                 'user' => $request->user(),[m
+             ],[m
+             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',[m
+[32m+[m[32m            'flash' => [[m
+[32m+[m[32m                'success' => $request->session()->get('success'),[m
+[32m+[m[32m                'error' => $request->session()->get('error'),[m
+[32m+[m[32m                'info' => $request->session()->get('info'),[m
+[32m+[m[32m            ],[m
+         ];[m
+     }[m
+ }[m
+[1mdiff --git a/app/Http/Resources/UserResource.php b/app/Http/Resources/UserResource.php[m
+[1mindex 4541bfb..294c146 100644[m
+[1m--- a/app/Http/Resources/UserResource.php[m
+[1m+++ b/app/Http/Resources/UserResource.php[m
+[36m@@ -14,7 +14,7 @@[m [mclass UserResource extends JsonResource[m
+      */[m
+     public function toArray(Request $request): array[m
+     {[m
+[31m-       return [[m
+[32m+[m[32m        return [[m
+             'id' => $this->id,[m
+             'email' => $this->email,[m
+             'name' => $this->name,[m
+[36m@@ -23,6 +23,20 @@[m [mpublic function toArray(Request $request): array[m
+             'avatar' => $this->avatar,[m
+             'created_at' => $this->created_at->format('Y-m-d H:i:s'),[m
+ [m
+[32m+[m[32m            // ✅ FIXED[m
+[32m+[m[32m            'seller_profile' => $this->whenLoaded('sellerProfile', function () {[m
+[32m+[m[32m                return [[m
+[32m+[m[32m                    'id' => $this->sellerProfile->id,[m
+[32m+[m[32m                    'store_name' => $this->sellerProfile->store_name,[m
+[32m+[m[32m                    'store_description' => $this->sellerProfile->store_description,[m
+[32m+[m[32m                    'status' => $this->sellerProfile->status,[m
+[32m+[m[32m                    'is_approved' => $this->sellerProfile->is_approved,[m
+[32m+[m[32m                    'business_license' => $this->sellerProfile->business_license_url,[m
+[32m+[m[32m                    'bank_name' => $this->sellerProfile->bank_name,[m
+[32m+[m[32m                    'bank_account_name' => $this->sellerProfile->bank_account_name,[m
+[32m+[m[32m                    'bank_account_number'=> $this->sellerProfile->bank_account_number,[m
+[32m+[m[32m                ];[m
+[32m+[m[32m            }),[m
+         ];[m
+     }[m
+ }[m
+[1mdiff --git a/app/Models/SellerProfile.php b/app/Models/SellerProfile.php[m
+[1mnew file mode 100644[m
+[1mindex 0000000..6a057ba[m
+[1m--- /dev/null[m
+[1m+++ b/app/Models/SellerProfile.php[m
+[36m@@ -0,0 +1,108 @@[m
+[32m+[m[32m<?php[m
+[32m+[m
+[32m+[m[32mnamespace App\Models;[m
+[32m+[m
+[32m+[m[32muse Illuminate\Database\Eloquent\Model;[m
+[32m+[m[32muse Illuminate\Database\Eloquent\Factories\HasFactory;[m
+[32m+[m
+[32m+[m[32mclass SellerProfile extends Model[m
+[32m+[m[32m{[m
+[32m+[m[32m    use HasFactory;[m
+[32m+[m
+[32m+[m[32m    protected $fillable = [[m
+[32m+[m[32m        'user_id',[m
+[32m+[m[32m        'store_name',[m
+[32m+[m[32m        'store_description',[m
+[32m+[m[32m        'store_logo',[m
+[32m+[m[32m        'business_license',[m
+[32m+[m[32m        'bank_account_name',[m
+[32m+[m[32m        'bank_account_number',[m
+[32m+[m[32m        'bank_name',[m
+[32m+[m[32m        'status',[m
+[32m+[m[32m        'is_approved',[m
+[32m+[m[32m        'admin_notes',[m
+[32m+[m[32m        'approved_at',[m
+[32m+[m[32m    ];[m
+[32m+[m
+[32m+[m[32m    protected $casts = [[m
+[32m+[m[32m        'is_approved' => 'boolean',[m
+[32m+[m[32m        'approved_at' => 'datetime',[m
+[32m+[m[32m    ];[m
+[32m+[m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * Relationship: Seller belongs to a user[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public function user()[m
+[32m+[m[32m    {[m
+[32m+[m[32m        return $this->belongsTo(User::class);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * Check if seller is approved[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public function isApproved(): bool[m
+[32m+[m[32m    {[m
+[32m+[m[32m        return $this->status === 'approved' && $this->is_approved;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * Check if seller is pending[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public function isPending(): bool[m
+[32m+[m[32m    {[m
+[32m+[m[32m        return $this->status === 'pending';[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * Check if seller is rejected[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public function isRejected(): bool[m
+[32m+[m[32m    {[m
+[32m+[m[32m        return $this->status === 'rejected';[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * Approve seller helper[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public function approve(?string $adminNotes = null): void[m
+[32m+[m[32m    {[m
+[32m+[m[32m        $this->update([[m
+[32m+[m[32m            'status' => 'approved',[m
+[32m+[m[32m            'is_approved' => true,[m
+[32m+[m[32m            'approved_at' => now(),[m
+[32m+[m[32m            'admin_notes' => $adminNotes,[m
+[32m+[m[32m        ]);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * Reject seller helper[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public function reject(?string $adminNotes = null): void[m
+[32m+[m[32m    {[m
+[32m+[m[32m        $this->update([[m
+[32m+[m[32m            'status' => 'rejected',[m
+[32m+[m[32m            'is_approved' => false,[m
+[32m+[m[32m            'admin_notes' => $adminNotes,[m
+[32m+[m[32m        ]);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * Get store logo URL[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public function getStoreLogoUrlAttribute(): ?string[m
+[32m+[m[32m    {[m
+[32m+[m[32m        return $this->store_logo[m
+[32m+[m[32m            ? asset('storage/' . $this->store_logo)[m
+[32m+[m[32m            : null;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    /**[m
+[32m+[m[32m     * Get business license URL[m
+[32m+[m[32m     */[m
+[32m+[m[32m    public function getBusinessLicenseUrlAttribute(): ?string[m
+[32m+[m[32m    {[m
+[32m+[m[32m        return $this->business_license[m
+[32m+[m[32m            ? asset('storage/' . $this->business_license)[m
+[32m+[m[32m            : null;[m
+[32m+[m[32m    }[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/app/Models/User.php b/app/Models/User.php[m
+[1mindex 2477837..66c2231 100644[m
+[1m--- a/app/Models/User.php[m
+[1m+++ b/app/Models/User.php[m
+[36m@@ -35,6 +35,10 @@[m [mprotected function casts(): array[m
+             'two_factor_confirmed_at' => 'datetime',[m
+         ];[m
+     }[m
+[32m+[m[32m    public function sellerProfile()[m
+[32m+[m[32m    {[m
+[32m+[m[32m        return $this->hasOne(SellerProfile::class);[m
+[32m+[m[32m    }[m
+     public function isnotAdmin(): bool[m
+     {[m
+         return $this->role != "admin";[m
+[1mdiff --git a/database/migrations/2026_04_05_023614_seler_profiles.php b/database/migrations/2026_04_05_023614_seler_profiles.php[m
+[1mindex 3e9267d..a2f8b18 100644[m
+[1m--- a/database/migrations/2026_04_05_023614_seler_profiles.php[m
+[1m+++ b/database/migrations/2026_04_05_023614_seler_profiles.php[m
+[36m@@ -15,6 +15,7 @@[m [mpublic function up(): void[m
+         Schema::create('seller_profiles', function (Blueprint $table) {[m
+             $table->id();[m
+             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');[m
+[32m+[m[32m            $table->string('business_license')->nullable();[m
+             $table->string('store_name')->required();[m
+             $table->text('store_description')->nullable();[m
+             $table->string('store_logo')->nullable();[m
+[1mdiff --git a/package-lock.json b/package-lock.json[m
+[1mindex 0f97780..be3bbfc 100644[m
+[1m--- a/package-lock.json[m
+[1m+++ b/package-lock.json[m
+[36m@@ -5,9 +5,12 @@[m
+     "packages": {[m
+         "": {[m
+             "dependencies": {[m
+[32m+[m[32m                "@emotion/react": "^11.14.0",[m
+[32m+[m[32m                "@emotion/styled": "^11.14.1",[m
+                 "@headlessui/react": "^2.2.0",[m
+                 "@inertiajs/react": "^3.0.0",[m
+                 "@inertiajs/vite": "^3.0.0",[m
+[32m+[m[32m                "@mui/material": "^9.0.0",[m
+                 "@radix-ui/react-avatar": "^1.1.3",[m
+                 "@radix-ui/react-checkbox": "^1.1.4",[m
+                 "@radix-ui/react-collapsible": "^1.1.3",[m
+[36m@@ -42,7 +45,8 @@[m
+                 "tailwindcss": "^4.0.0",[m
+                 "tw-animate-css": "^1.4.0",[m
+                 "typescript": "^5.7.2",[m
+[31m-                "vite": "^8.0.0"[m
+[32m+[m[32m                "vite": "^8.0.0",[m
+[32m+[m[32m                "zustand": "^5.0.12"[m
+             },[m
+             "devDependencies": {[m
+                 "@eslint/js": "^9.19.0",[m
+[36m@@ -287,6 +291,15 @@[m
+                 "@babel/core": "^7.0.0-0"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/@babel/runtime": {[m
+[32m+[m[32m            "version": "7.29.2",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@babel/runtime/-/runtime-7.29.2.tgz",[m
+[32m+[m[32m            "integrity": "sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=6.9.0"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/@babel/template": {[m
+             "version": "7.28.6",[m
+             "resolved": "https://registry.npmjs.org/@babel/template/-/template-7.28.6.tgz",[m
+[36m@@ -363,6 +376,158 @@[m
+                 "tslib": "^2.4.0"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/@emotion/babel-plugin": {[m
+[32m+[m[32m            "version": "11.13.5",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/babel-plugin/-/babel-plugin-11.13.5.tgz",[m
+[32m+[m[32m            "integrity": "sha512-pxHCpT2ex+0q+HH91/zsdHkw/lXd468DIN2zvfvLtPKLLMo6gQj7oLObq8PhkrxOZb/gGCq03S3Z7PDhS8pduQ==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/helper-module-imports": "^7.16.7",[m
+[32m+[m[32m                "@babel/runtime": "^7.18.3",[m
+[32m+[m[32m                "@emotion/hash": "^0.9.2",[m
+[32m+[m[32m                "@emotion/memoize": "^0.9.0",[m
+[32m+[m[32m                "@emotion/serialize": "^1.3.3",[m
+[32m+[m[32m                "babel-plugin-macros": "^3.1.0",[m
+[32m+[m[32m                "convert-source-map": "^1.5.0",[m
+[32m+[m[32m                "escape-string-regexp": "^4.0.0",[m
+[32m+[m[32m                "find-root": "^1.1.0",[m
+[32m+[m[32m                "source-map": "^0.5.7",[m
+[32m+[m[32m                "stylis": "4.2.0"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/babel-plugin/node_modules/convert-source-map": {[m
+[32m+[m[32m            "version": "1.9.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/convert-source-map/-/convert-source-map-1.9.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-ASFBup0Mz1uyiIjANan1jzLQami9z1PoYSZCiiYW2FczPbenXc45FZdBZLzOT+r6+iciuEModtmCti+hjaAk0A==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/cache": {[m
+[32m+[m[32m            "version": "11.14.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/cache/-/cache-11.14.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-L/B1lc/TViYk4DcpGxtAVbx0ZyiKM5ktoIyafGkH6zg/tj+mA+NE//aPYKG0k8kCHSHVJrpLpcAlOBEXQ3SavA==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@emotion/memoize": "^0.9.0",[m
+[32m+[m[32m                "@emotion/sheet": "^1.4.0",[m
+[32m+[m[32m                "@emotion/utils": "^1.4.2",[m
+[32m+[m[32m                "@emotion/weak-memoize": "^0.4.0",[m
+[32m+[m[32m                "stylis": "4.2.0"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/hash": {[m
+[32m+[m[32m            "version": "0.9.2",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/hash/-/hash-0.9.2.tgz",[m
+[32m+[m[32m            "integrity": "sha512-MyqliTZGuOm3+5ZRSaaBGP3USLw6+EGykkwZns2EPC5g8jJ4z9OrdZY9apkl3+UP9+sdz76YYkwCKP5gh8iY3g==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/is-prop-valid": {[m
+[32m+[m[32m            "version": "1.4.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/is-prop-valid/-/is-prop-valid-1.4.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-QgD4fyscGcbbKwJmqNvUMSE02OsHUa+lAWKdEUIJKgqe5IwRSKd7+KhibEWdaKwgjLj0DRSHA9biAIqGBk05lw==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@emotion/memoize": "^0.9.0"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/memoize": {[m
+[32m+[m[32m            "version": "0.9.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/memoize/-/memoize-0.9.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-30FAj7/EoJ5mwVPOWhAyCX+FPfMDrVecJAM+Iw9NRoSl4BBAQeqj4cApHHUXOVvIPgLVDsCFoz/hGD+5QQD1GQ==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/react": {[m
+[32m+[m[32m            "version": "11.14.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/react/-/react-11.14.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-O000MLDBDdk/EohJPFUqvnp4qnHeYkVP5B0xEG0D/L7cOKP9kefu2DXn8dj74cQfsEzUqh+sr1RzFqiL1o+PpA==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.18.3",[m
+[32m+[m[32m                "@emotion/babel-plugin": "^11.13.5",[m
+[32m+[m[32m                "@emotion/cache": "^11.14.0",[m
+[32m+[m[32m                "@emotion/serialize": "^1.3.3",[m
+[32m+[m[32m                "@emotion/use-insertion-effect-with-fallbacks": "^1.2.0",[m
+[32m+[m[32m                "@emotion/utils": "^1.4.2",[m
+[32m+[m[32m                "@emotion/weak-memoize": "^0.4.0",[m
+[32m+[m[32m                "hoist-non-react-statics": "^3.3.1"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "react": ">=16.8.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependenciesMeta": {[m
+[32m+[m[32m                "@types/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/serialize": {[m
+[32m+[m[32m            "version": "1.3.3",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/serialize/-/serialize-1.3.3.tgz",[m
+[32m+[m[32m            "integrity": "sha512-EISGqt7sSNWHGI76hC7x1CksiXPahbxEOrC5RjmFRJTqLyEK9/9hZvBbiYn70dw4wuwMKiEMCUlR6ZXTSWQqxA==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@emotion/hash": "^0.9.2",[m
+[32m+[m[32m                "@emotion/memoize": "^0.9.0",[m
+[32m+[m[32m                "@emotion/unitless": "^0.10.0",[m
+[32m+[m[32m                "@emotion/utils": "^1.4.2",[m
+[32m+[m[32m                "csstype": "^3.0.2"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/sheet": {[m
+[32m+[m[32m            "version": "1.4.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/sheet/-/sheet-1.4.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-fTBW9/8r2w3dXWYM4HCB1Rdp8NLibOw2+XELH5m5+AkWiL/KqYX6dc0kKYlaYyKjrQ6ds33MCdMPEwgs2z1rqg==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/styled": {[m
+[32m+[m[32m            "version": "11.14.1",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/styled/-/styled-11.14.1.tgz",[m
+[32m+[m[32m            "integrity": "sha512-qEEJt42DuToa3gurlH4Qqc1kVpNq8wO8cJtDzU46TjlzWjDlsVyevtYCRijVq3SrHsROS+gVQ8Fnea108GnKzw==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.18.3",[m
+[32m+[m[32m                "@emotion/babel-plugin": "^11.13.5",[m
+[32m+[m[32m                "@emotion/is-prop-valid": "^1.3.0",[m
+[32m+[m[32m                "@emotion/serialize": "^1.3.3",[m
+[32m+[m[32m                "@emotion/use-insertion-effect-with-fallbacks": "^1.2.0",[m
+[32m+[m[32m                "@emotion/utils": "^1.4.2"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "@emotion/react": "^11.0.0-rc.0",[m
+[32m+[m[32m                "react": ">=16.8.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependenciesMeta": {[m
+[32m+[m[32m                "@types/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/unitless": {[m
+[32m+[m[32m            "version": "0.10.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/unitless/-/unitless-0.10.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-dFoMUuQA20zvtVTuxZww6OHoJYgrzfKM1t52mVySDJnMSEa08ruEvdYQbhvyu6soU+NeLVd3yKfTfT0NeV6qGg==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/use-insertion-effect-with-fallbacks": {[m
+[32m+[m[32m            "version": "1.2.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/use-insertion-effect-with-fallbacks/-/use-insertion-effect-with-fallbacks-1.2.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-yJMtVdH59sxi/aVJBpk9FQq+OR8ll5GT8oWd57UpeaKEVGab41JWaCFA7FRLoMLloOZF/c/wsPoe+bfGmRKgDg==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "react": ">=16.8.0"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/utils": {[m
+[32m+[m[32m            "version": "1.4.2",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/utils/-/utils-1.4.2.tgz",[m
+[32m+[m[32m            "integrity": "sha512-3vLclRofFziIa3J2wDh9jjbkUz9qk5Vi3IZ/FSTKViB0k+ef0fPV7dYrUIugbgupYDx7v9ud/SjrtEP8Y4xLoA==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@emotion/weak-memoize": {[m
+[32m+[m[32m            "version": "0.4.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@emotion/weak-memoize/-/weak-memoize-0.4.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-snKqtPW01tN0ui7yu9rGv69aJXr/a/Ywvl11sUjNtEcRc+ng/mQriFL0wLXMef74iHa/EkftbDzU9F8iFbH+zg==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+         "node_modules/@eslint-community/eslint-utils": {[m
+             "version": "4.9.1",[m
+             "resolved": "https://registry.npmjs.org/@eslint-community/eslint-utils/-/eslint-utils-4.9.1.tgz",[m
+[36m@@ -744,6 +909,225 @@[m
+             "dev": true,[m
+             "license": "MIT"[m
+         },[m
+[32m+[m[32m        "node_modules/@mui/core-downloads-tracker": {[m
+[32m+[m[32m            "version": "9.0.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@mui/core-downloads-tracker/-/core-downloads-tracker-9.0.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-uwQNGkhv0lf7ufxw6QXev77BW6pWbW+7uxYjU5+rfp4lBkFtMEgJCsarTM3Tn+i0lGx6+Ol2u88JdGXr0GDskA==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "funding": {[m
+[32m+[m[32m                "type": "opencollective",[m
+[32m+[m[32m                "url": "https://opencollective.com/mui-org"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@mui/material": {[m
+[32m+[m[32m            "version": "9.0.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@mui/material/-/material-9.0.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-+VP/oQCDhDR87NQQgXnNBG8dwy6GNuQLnenS1pZvkbn2dKFSxRSRMybTpH9xUxXP+316mlYDy5CSbYtusnCWtw==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.29.2",[m
+[32m+[m[32m                "@mui/core-downloads-tracker": "^9.0.0",[m
+[32m+[m[32m                "@mui/system": "^9.0.0",[m
+[32m+[m[32m                "@mui/types": "^9.0.0",[m
+[32m+[m[32m                "@mui/utils": "^9.0.0",[m
+[32m+[m[32m                "@popperjs/core": "^2.11.8",[m
+[32m+[m[32m                "@types/react-transition-group": "^4.4.12",[m
+[32m+[m[32m                "clsx": "^2.1.1",[m
+[32m+[m[32m                "csstype": "^3.2.3",[m
+[32m+[m[32m                "prop-types": "^15.8.1",[m
+[32m+[m[32m                "react-is": "^19.2.4",[m
+[32m+[m[32m                "react-transition-group": "^4.4.5"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=14.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "funding": {[m
+[32m+[m[32m                "type": "opencollective",[m
+[32m+[m[32m                "url": "https://opencollective.com/mui-org"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "@emotion/react": "^11.5.0",[m
+[32m+[m[32m                "@emotion/styled": "^11.3.0",[m
+[32m+[m[32m                "@mui/material-pigment-css": "^9.0.0",[m
+[32m+[m[32m                "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",[m
+[32m+[m[32m                "react": "^17.0.0 || ^18.0.0 || ^19.0.0",[m
+[32m+[m[32m                "react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependenciesMeta": {[m
+[32m+[m[32m                "@emotion/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                },[m
+[32m+[m[32m                "@emotion/styled": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                },[m
+[32m+[m[32m                "@mui/material-pigment-css": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                },[m
+[32m+[m[32m                "@types/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@mui/material/node_modules/react-is": {[m
+[32m+[m[32m            "version": "19.2.5",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/react-is/-/react-is-19.2.5.tgz",[m
+[32m+[m[32m            "integrity": "sha512-Dn0t8IQhCmeIT3wu+Apm1/YVsJXsGWi6k4sPdnBIdqMVtHtv0IGi6dcpNpNkNac0zB2uUAqNX3MHzN8c+z2rwQ==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@mui/private-theming": {[m
+[32m+[m[32m            "version": "9.0.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@mui/private-theming/-/private-theming-9.0.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-JtuZoaiCqwD6vjgYu6Xp3T7DZkrxJlgtDz5yESzhI34fEX5hHMh2VJUbuL9UOg8xrfIFMrq6dcYoH/7Zi4G0RA==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.29.2",[m
+[32m+[m[32m                "@mui/utils": "^9.0.0",[m
+[32m+[m[32m                "prop-types": "^15.8.1"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=14.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "funding": {[m
+[32m+[m[32m                "type": "opencollective",[m
+[32m+[m[32m                "url": "https://opencollective.com/mui-org"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",[m
+[32m+[m[32m                "react": "^17.0.0 || ^18.0.0 || ^19.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependenciesMeta": {[m
+[32m+[m[32m                "@types/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@mui/styled-engine": {[m
+[32m+[m[32m            "version": "9.0.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@mui/styled-engine/-/styled-engine-9.0.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-9RLGdX4Jg0aQPRuvqh/OLzYSPlgd5zyEw5/1HIRfdavSiOd03WtUaGZH9/w1RoTYuRKwpgy0hpIFaMHIqPVIWg==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.29.2",[m
+[32m+[m[32m                "@emotion/cache": "^11.14.0",[m
+[32m+[m[32m                "@emotion/serialize": "^1.3.3",[m
+[32m+[m[32m                "@emotion/sheet": "^1.4.0",[m
+[32m+[m[32m                "csstype": "^3.2.3",[m
+[32m+[m[32m                "prop-types": "^15.8.1"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=14.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "funding": {[m
+[32m+[m[32m                "type": "opencollective",[m
+[32m+[m[32m                "url": "https://opencollective.com/mui-org"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "@emotion/react": "^11.4.1",[m
+[32m+[m[32m                "@emotion/styled": "^11.3.0",[m
+[32m+[m[32m                "react": "^17.0.0 || ^18.0.0 || ^19.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependenciesMeta": {[m
+[32m+[m[32m                "@emotion/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                },[m
+[32m+[m[32m                "@emotion/styled": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@mui/system": {[m
+[32m+[m[32m            "version": "9.0.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@mui/system/-/system-9.0.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-YnC5Zg6j04IxiLc/boAKs0464jfZlLFVa7mf5E8lF0XOtZVUvG6R6gJK50lgUYdaaLdyLfxF6xR7LaPuEpeT/g==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.29.2",[m
+[32m+[m[32m                "@mui/private-theming": "^9.0.0",[m
+[32m+[m[32m                "@mui/styled-engine": "^9.0.0",[m
+[32m+[m[32m                "@mui/types": "^9.0.0",[m
+[32m+[m[32m                "@mui/utils": "^9.0.0",[m
+[32m+[m[32m                "clsx": "^2.1.1",[m
+[32m+[m[32m                "csstype": "^3.2.3",[m
+[32m+[m[32m                "prop-types": "^15.8.1"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=14.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "funding": {[m
+[32m+[m[32m                "type": "opencollective",[m
+[32m+[m[32m                "url": "https://opencollective.com/mui-org"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "@emotion/react": "^11.5.0",[m
+[32m+[m[32m                "@emotion/styled": "^11.3.0",[m
+[32m+[m[32m                "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",[m
+[32m+[m[32m                "react": "^17.0.0 || ^18.0.0 || ^19.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependenciesMeta": {[m
+[32m+[m[32m                "@emotion/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                },[m
+[32m+[m[32m                "@emotion/styled": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                },[m
+[32m+[m[32m                "@types/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@mui/types": {[m
+[32m+[m[32m            "version": "9.0.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@mui/types/-/types-9.0.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-i1cuFCAWN44b3AJWO7mh7tuh1sqbQSeVr/94oG0TX5uXivac8XalgE4/6fQZcmGZigzbQ35IXxj/4jLpRIBYZg==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.29.2"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependenciesMeta": {[m
+[32m+[m[32m                "@types/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@mui/utils": {[m
+[32m+[m[32m            "version": "9.0.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@mui/utils/-/utils-9.0.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-bQcqyg/gjULUqTuyUjSAFr6LQGLvtkNtDbJerAtoUn9kGZ0hg5QJiN1PLHMLbeFpe3te1831uq7GFl2ITokGdg==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.29.2",[m
+[32m+[m[32m                "@mui/types": "^9.0.0",[m
+[32m+[m[32m                "@types/prop-types": "^15.7.15",[m
+[32m+[m[32m                "clsx": "^2.1.1",[m
+[32m+[m[32m                "prop-types": "^15.8.1",[m
+[32m+[m[32m                "react-is": "^19.2.4"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=14.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "funding": {[m
+[32m+[m[32m                "type": "opencollective",[m
+[32m+[m[32m                "url": "https://opencollective.com/mui-org"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",[m
+[32m+[m[32m                "react": "^17.0.0 || ^18.0.0 || ^19.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependenciesMeta": {[m
+[32m+[m[32m                "@types/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@mui/utils/node_modules/react-is": {[m
+[32m+[m[32m            "version": "19.2.5",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/react-is/-/react-is-19.2.5.tgz",[m
+[32m+[m[32m            "integrity": "sha512-Dn0t8IQhCmeIT3wu+Apm1/YVsJXsGWi6k4sPdnBIdqMVtHtv0IGi6dcpNpNkNac0zB2uUAqNX3MHzN8c+z2rwQ==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+         "node_modules/@napi-rs/wasm-runtime": {[m
+             "version": "0.2.12",[m
+             "resolved": "https://registry.npmjs.org/@napi-rs/wasm-runtime/-/wasm-runtime-0.2.12.tgz",[m
+[36m@@ -765,6 +1149,16 @@[m
+                 "url": "https://github.com/sponsors/Boshen"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/@popperjs/core": {[m
+[32m+[m[32m            "version": "2.11.8",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@popperjs/core/-/core-2.11.8.tgz",[m
+[32m+[m[32m            "integrity": "sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "funding": {[m
+[32m+[m[32m                "type": "opencollective",[m
+[32m+[m[32m                "url": "https://opencollective.com/popperjs"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/@radix-ui/number": {[m
+             "version": "1.1.1",[m
+             "resolved": "https://registry.npmjs.org/@radix-ui/number/-/number-1.1.1.tgz",[m
+[36m@@ -5010,6 +5404,18 @@[m
+                 "undici-types": "~6.21.0"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/@types/parse-json": {[m
+[32m+[m[32m            "version": "4.0.2",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@types/parse-json/-/parse-json-4.0.2.tgz",[m
+[32m+[m[32m            "integrity": "sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/@types/prop-types": {[m
+[32m+[m[32m            "version": "15.7.15",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@types/prop-types/-/prop-types-15.7.15.tgz",[m
+[32m+[m[32m            "integrity": "sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+         "node_modules/@types/react": {[m
+             "version": "19.2.14",[m
+             "resolved": "https://registry.npmjs.org/@types/react/-/react-19.2.14.tgz",[m
+[36m@@ -5028,6 +5434,15 @@[m
+                 "@types/react": "^19.2.0"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/@types/react-transition-group": {[m
+[32m+[m[32m            "version": "4.4.12",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/@types/react-transition-group/-/react-transition-group-4.4.12.tgz",[m
+[32m+[m[32m            "integrity": "sha512-8TV6R3h2j7a91c+1DXdJi3Syo69zzIZbz7Lg5tORM5LEJG7X/E6a1V3drRyBRZq7/utz7A+c4OgYLiLcYGHG6w==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "@types/react": "*"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/@typescript-eslint/eslint-plugin": {[m
+             "version": "8.58.0",[m
+             "resolved": "https://registry.npmjs.org/@typescript-eslint/eslint-plugin/-/eslint-plugin-8.58.0.tgz",[m
+[36m@@ -5898,6 +6313,42 @@[m
+                 "proxy-from-env": "^2.1.0"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/babel-plugin-macros": {[m
+[32m+[m[32m            "version": "3.1.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/babel-plugin-macros/-/babel-plugin-macros-3.1.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-Cg7TFGpIr01vOQNODXOOaGz2NpCU5gl8x1qJFbb6hbZxR7XrcE2vtbAsTAbJ7/xwJtUuJEw8K8Zr/AE0LHlesg==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.12.5",[m
+[32m+[m[32m                "cosmiconfig": "^7.0.0",[m
+[32m+[m[32m                "resolve": "^1.19.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=10",[m
+[32m+[m[32m                "npm": ">=6"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/babel-plugin-macros/node_modules/resolve": {[m
+[32m+[m[32m            "version": "1.22.12",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/resolve/-/resolve-1.22.12.tgz",[m
+[32m+[m[32m            "integrity": "sha512-TyeJ1zif53BPfHootBGwPRYT1RUt6oGWsaQr8UyZW/eAm9bKoijtvruSDEmZHm92CwS9nj7/fWttqPCgzep8CA==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "es-errors": "^1.3.0",[m
+[32m+[m[32m                "is-core-module": "^2.16.1",[m
+[32m+[m[32m                "path-parse": "^1.0.7",[m
+[32m+[m[32m                "supports-preserve-symlinks-flag": "^1.0.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "bin": {[m
+[32m+[m[32m                "resolve": "bin/resolve"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">= 0.4"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "funding": {[m
+[32m+[m[32m                "url": "https://github.com/sponsors/ljharb"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/babel-plugin-react-compiler": {[m
+             "version": "1.0.0",[m
+             "resolved": "https://registry.npmjs.org/babel-plugin-react-compiler/-/babel-plugin-react-compiler-1.0.0.tgz",[m
+[36m@@ -6024,7 +6475,6 @@[m
+             "version": "3.1.0",[m
+             "resolved": "https://registry.npmjs.org/callsites/-/callsites-3.1.0.tgz",[m
+             "integrity": "sha512-P8BjAsXvZS+VIDUI11hHCQEv74YT67YUi5JJFNWIqL235sBmjX4+qx9Muvls5ivyNENctx46xQLQ3aTuE7ssaQ==",[m
+[31m-            "dev": true,[m
+             "license": "MIT",[m
+             "engines": {[m
+                 "node": ">=6"[m
+[36m@@ -6180,6 +6630,31 @@[m
+             "integrity": "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==",[m
+             "license": "MIT"[m
+         },[m
+[32m+[m[32m        "node_modules/cosmiconfig": {[m
+[32m+[m[32m            "version": "7.1.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/cosmiconfig/-/cosmiconfig-7.1.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-AdmX6xUzdNASswsFtmwSt7Vj8po9IuqXm0UXz7QKPuEUmPB4XyjGfaAr2PSuELMwkRMVH1EpIkX5bTZGRB3eCA==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@types/parse-json": "^4.0.0",[m
+[32m+[m[32m                "import-fresh": "^3.2.1",[m
+[32m+[m[32m                "parse-json": "^5.0.0",[m
+[32m+[m[32m                "path-type": "^4.0.0",[m
+[32m+[m[32m                "yaml": "^1.10.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=10"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/cosmiconfig/node_modules/yaml": {[m
+[32m+[m[32m            "version": "1.10.3",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/yaml/-/yaml-1.10.3.tgz",[m
+[32m+[m[32m            "integrity": "sha512-vIYeF1u3CjlhAFekPPAk2h/Kv4T3mAkMox5OymRiJQB0spDP10LHvt+K7G9Ny6NuuMAb25/6n1qyUjAcGNf/AA==",[m
+[32m+[m[32m            "license": "ISC",[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">= 6"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/cross-spawn": {[m
+             "version": "7.0.6",[m
+             "resolved": "https://registry.npmjs.org/cross-spawn/-/cross-spawn-7.0.6.tgz",[m
+[36m@@ -6352,6 +6827,16 @@[m
+                 "node": ">=0.10.0"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/dom-helpers": {[m
+[32m+[m[32m            "version": "5.2.1",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/dom-helpers/-/dom-helpers-5.2.1.tgz",[m
+[32m+[m[32m            "integrity": "sha512-nRCa7CK3VTrM2NmGkIy4cbK7IZlgBE/PYMn55rrXefr5xXDP0LdtfPnblFDoVdcAfslJ7or6iqAUnx0CCGIWQA==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.8.7",[m
+[32m+[m[32m                "csstype": "^3.0.2"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/dunder-proto": {[m
+             "version": "1.0.1",[m
+             "resolved": "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz",[m
+[36m@@ -6391,6 +6876,15 @@[m
+                 "node": ">=10.13.0"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/error-ex": {[m
+[32m+[m[32m            "version": "1.3.4",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/error-ex/-/error-ex-1.3.4.tgz",[m
+[32m+[m[32m            "integrity": "sha512-sqQamAnR14VgCr1A618A3sGrygcpK+HEbenA/HiEAkkUwcZIIB/tgWqHFxWgOyDh4nB4JCRimh79dR5Ywc9MDQ==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "is-arrayish": "^0.2.1"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/es-abstract": {[m
+             "version": "1.24.1",[m
+             "resolved": "https://registry.npmjs.org/es-abstract/-/es-abstract-1.24.1.tgz",[m
+[36m@@ -6588,7 +7082,6 @@[m
+             "version": "4.0.0",[m
+             "resolved": "https://registry.npmjs.org/escape-string-regexp/-/escape-string-regexp-4.0.0.tgz",[m
+             "integrity": "sha512-TtpcNJ3XAzx3Gq8sWRzJaVajRs0uVxA2YAkdb1jm2YkPz4G6egUFAyA3n5vtEIZefPk5Wa4UXbKuS5fKkJWdgA==",[m
+[31m-            "dev": true,[m
+             "license": "MIT",[m
+             "engines": {[m
+                 "node": ">=10"[m
+[36m@@ -7025,6 +7518,12 @@[m
+                 "node": ">=16.0.0"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/find-root": {[m
+[32m+[m[32m            "version": "1.1.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/find-root/-/find-root-1.1.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-NKfW6bec6GfKc0SGx1e07QZY9PE99u0Bft/0rzSD5k3sO/vwkVUpDUKVm5Gpp5Ue3YfShPFTX2070tDs5kB9Ng==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+         "node_modules/find-up": {[m
+             "version": "5.0.0",[m
+             "resolved": "https://registry.npmjs.org/find-up/-/find-up-5.0.0.tgz",[m
+[36m@@ -7441,6 +7940,15 @@[m
+                 "hermes-estree": "0.25.1"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/hoist-non-react-statics": {[m
+[32m+[m[32m            "version": "3.3.2",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/hoist-non-react-statics/-/hoist-non-react-statics-3.3.2.tgz",[m
+[32m+[m[32m            "integrity": "sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==",[m
+[32m+[m[32m            "license": "BSD-3-Clause",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "react-is": "^16.7.0"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/ignore": {[m
+             "version": "5.3.2",[m
+             "resolved": "https://registry.npmjs.org/ignore/-/ignore-5.3.2.tgz",[m
+[36m@@ -7455,7 +7963,6 @@[m
+             "version": "3.3.1",[m
+             "resolved": "https://registry.npmjs.org/import-fresh/-/import-fresh-3.3.1.tgz",[m
+             "integrity": "sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ==",[m
+[31m-            "dev": true,[m
+             "license": "MIT",[m
+             "dependencies": {[m
+                 "parent-module": "^1.0.0",[m
+[36m@@ -7521,6 +8028,12 @@[m
+                 "url": "https://github.com/sponsors/ljharb"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/is-arrayish": {[m
+[32m+[m[32m            "version": "0.2.1",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/is-arrayish/-/is-arrayish-0.2.1.tgz",[m
+[32m+[m[32m            "integrity": "sha512-zz06S8t0ozoDXMG+ube26zeCTNXcKIPJZJi8hBrF4idCLms4CG9QtK7qBl1boi5ODzFpjswb5JPmHCbMpjaYzg==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+         "node_modules/is-async-function": {[m
+             "version": "2.1.1",[m
+             "resolved": "https://registry.npmjs.org/is-async-function/-/is-async-function-2.1.1.tgz",[m
+[36m@@ -7614,7 +8127,6 @@[m
+             "version": "2.16.1",[m
+             "resolved": "https://registry.npmjs.org/is-core-module/-/is-core-module-2.16.1.tgz",[m
+             "integrity": "sha512-UfoeMA6fIJ8wTYFEUjelnaGI67v6+N7qXJEvQuIGa99l4xsCruSYOVSQ0uPANn4dAzm8lkYPaKLrrijLq7x23w==",[m
+[31m-            "dev": true,[m
+             "license": "MIT",[m
+             "dependencies": {[m
+                 "hasown": "^2.0.2"[m
+[36m@@ -7996,6 +8508,12 @@[m
+             "dev": true,[m
+             "license": "MIT"[m
+         },[m
+[32m+[m[32m        "node_modules/json-parse-even-better-errors": {[m
+[32m+[m[32m            "version": "2.3.1",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/json-parse-even-better-errors/-/json-parse-even-better-errors-2.3.1.tgz",[m
+[32m+[m[32m            "integrity": "sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+         "node_modules/json-schema-traverse": {[m
+             "version": "0.4.1",[m
+             "resolved": "https://registry.npmjs.org/json-schema-traverse/-/json-schema-traverse-0.4.1.tgz",[m
+[36m@@ -8348,6 +8866,12 @@[m
+                 "url": "https://opencollective.com/parcel"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/lines-and-columns": {[m
+[32m+[m[32m            "version": "1.2.4",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/lines-and-columns/-/lines-and-columns-1.2.4.tgz",[m
+[32m+[m[32m            "integrity": "sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+         "node_modules/locate-path": {[m
+             "version": "6.0.0",[m
+             "resolved": "https://registry.npmjs.org/locate-path/-/locate-path-6.0.0.tgz",[m
+[36m@@ -8375,7 +8899,6 @@[m
+             "version": "1.4.0",[m
+             "resolved": "https://registry.npmjs.org/loose-envify/-/loose-envify-1.4.0.tgz",[m
+             "integrity": "sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==",[m
+[31m-            "dev": true,[m
+             "license": "MIT",[m
+             "dependencies": {[m
+                 "js-tokens": "^3.0.0 || ^4.0.0"[m
+[36m@@ -8550,7 +9073,6 @@[m
+             "version": "4.1.1",[m
+             "resolved": "https://registry.npmjs.org/object-assign/-/object-assign-4.1.1.tgz",[m
+             "integrity": "sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==",[m
+[31m-            "dev": true,[m
+             "license": "MIT",[m
+             "engines": {[m
+                 "node": ">=0.10.0"[m
+[36m@@ -8741,7 +9263,6 @@[m
+             "version": "1.0.1",[m
+             "resolved": "https://registry.npmjs.org/parent-module/-/parent-module-1.0.1.tgz",[m
+             "integrity": "sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==",[m
+[31m-            "dev": true,[m
+             "license": "MIT",[m
+             "dependencies": {[m
+                 "callsites": "^3.0.0"[m
+[36m@@ -8750,6 +9271,24 @@[m
+                 "node": ">=6"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/parse-json": {[m
+[32m+[m[32m            "version": "5.2.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/parse-json/-/parse-json-5.2.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-ayCKvm/phCGxOkYRSCM82iDwct8/EonSEgCSxWxD7ve6jHggsFl4fZVQBPRNgQoKiuV/odhFrGzQXZwbifC8Rg==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/code-frame": "^7.0.0",[m
+[32m+[m[32m                "error-ex": "^1.3.1",[m
+[32m+[m[32m                "json-parse-even-better-errors": "^2.3.0",[m
+[32m+[m[32m                "lines-and-columns": "^1.1.6"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=8"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "funding": {[m
+[32m+[m[32m                "url": "https://github.com/sponsors/sindresorhus"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/path-exists": {[m
+             "version": "4.0.0",[m
+             "resolved": "https://registry.npmjs.org/path-exists/-/path-exists-4.0.0.tgz",[m
+[36m@@ -8774,9 +9313,17 @@[m
+             "version": "1.0.7",[m
+             "resolved": "https://registry.npmjs.org/path-parse/-/path-parse-1.0.7.tgz",[m
+             "integrity": "sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw==",[m
+[31m-            "dev": true,[m
+             "license": "MIT"[m
+         },[m
+[32m+[m[32m        "node_modules/path-type": {[m
+[32m+[m[32m            "version": "4.0.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/path-type/-/path-type-4.0.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=8"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/picocolors": {[m
+             "version": "1.1.1",[m
+             "resolved": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz",[m
+[36m@@ -8950,7 +9497,6 @@[m
+             "version": "15.8.1",[m
+             "resolved": "https://registry.npmjs.org/prop-types/-/prop-types-15.8.1.tgz",[m
+             "integrity": "sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==",[m
+[31m-            "dev": true,[m
+             "license": "MIT",[m
+             "dependencies": {[m
+                 "loose-envify": "^1.4.0",[m
+[36m@@ -9208,7 +9754,6 @@[m
+             "version": "16.13.1",[m
+             "resolved": "https://registry.npmjs.org/react-is/-/react-is-16.13.1.tgz",[m
+             "integrity": "sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==",[m
+[31m-            "dev": true,[m
+             "license": "MIT"[m
+         },[m
+         "node_modules/react-refresh": {[m
+[36m@@ -9289,6 +9834,22 @@[m
+                 }[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/react-transition-group": {[m
+[32m+[m[32m            "version": "4.4.5",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/react-transition-group/-/react-transition-group-4.4.5.tgz",[m
+[32m+[m[32m            "integrity": "sha512-pZcd1MCJoiKiBR2NRxeCRg13uCXbydPnmB4EOeRrY7480qNWO8IIgQG6zlDkm6uRMsURXPuKq0GWtiM59a5Q6g==",[m
+[32m+[m[32m            "license": "BSD-3-Clause",[m
+[32m+[m[32m            "dependencies": {[m
+[32m+[m[32m                "@babel/runtime": "^7.5.5",[m
+[32m+[m[32m                "dom-helpers": "^5.0.1",[m
+[32m+[m[32m                "loose-envify": "^1.4.0",[m
+[32m+[m[32m                "prop-types": "^15.6.2"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "react": ">=16.6.0",[m
+[32m+[m[32m                "react-dom": ">=16.6.0"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/reflect.getprototypeof": {[m
+             "version": "1.0.10",[m
+             "resolved": "https://registry.npmjs.org/reflect.getprototypeof/-/reflect.getprototypeof-1.0.10.tgz",[m
+[36m@@ -9370,7 +9931,6 @@[m
+             "version": "4.0.0",[m
+             "resolved": "https://registry.npmjs.org/resolve-from/-/resolve-from-4.0.0.tgz",[m
+             "integrity": "sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==",[m
+[31m-            "dev": true,[m
+             "license": "MIT",[m
+             "engines": {[m
+                 "node": ">=4"[m
+[36m@@ -9674,6 +10234,15 @@[m
+                 "react-dom": "^18.0.0 || ^19.0.0 || ^19.0.0-rc"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/source-map": {[m
+[32m+[m[32m            "version": "0.5.7",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/source-map/-/source-map-0.5.7.tgz",[m
+[32m+[m[32m            "integrity": "sha512-LbrmJOMUSdEVxIKvdcJzQC+nQhe8FUZQTXQy6+I75skNgn3OoQ0DZA8YnFa7gp8tqtL3KPf1kmo0R5DoApeSGQ==",[m
+[32m+[m[32m            "license": "BSD-3-Clause",[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=0.10.0"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/source-map-js": {[m
+             "version": "1.2.1",[m
+             "resolved": "https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz",[m
+[36m@@ -9854,6 +10423,12 @@[m
+                 "url": "https://github.com/sponsors/sindresorhus"[m
+             }[m
+         },[m
+[32m+[m[32m        "node_modules/stylis": {[m
+[32m+[m[32m            "version": "4.2.0",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/stylis/-/stylis-4.2.0.tgz",[m
+[32m+[m[32m            "integrity": "sha512-Orov6g6BB1sDfYgzWfTHDOxamtX1bE/zo104Dh9e6fqJ3PooipYyfJ0pUmrZO2wAvO8YbEyeFrkV91XTsGMSrw==",[m
+[32m+[m[32m            "license": "MIT"[m
+[32m+[m[32m        },[m
+         "node_modules/supports-color": {[m
+             "version": "8.1.1",[m
+             "resolved": "https://registry.npmjs.org/supports-color/-/supports-color-8.1.1.tgz",[m
+[36m@@ -9873,7 +10448,6 @@[m
+             "version": "1.0.0",[m
+             "resolved": "https://registry.npmjs.org/supports-preserve-symlinks-flag/-/supports-preserve-symlinks-flag-1.0.0.tgz",[m
+             "integrity": "sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==",[m
+[31m-            "dev": true,[m
+             "license": "MIT",[m
+             "engines": {[m
+                 "node": ">= 0.4"[m
+[36m@@ -10523,6 +11097,23 @@[m
+             "integrity": "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==",[m
+             "license": "ISC"[m
+         },[m
+[32m+[m[32m        "node_modules/yaml": {[m
+[32m+[m[32m            "version": "2.8.3",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/yaml/-/yaml-2.8.3.tgz",[m
+[32m+[m[32m            "integrity": "sha512-AvbaCLOO2Otw/lW5bmh9d/WEdcDFdQp2Z2ZUH3pX9U2ihyUY0nvLv7J6TrWowklRGPYbB/IuIMfYgxaCPg5Bpg==",[m
+[32m+[m[32m            "license": "ISC",[m
+[32m+[m[32m            "optional": true,[m
+[32m+[m[32m            "peer": true,[m
+[32m+[m[32m            "bin": {[m
+[32m+[m[32m                "yaml": "bin.mjs"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">= 14.6"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "funding": {[m
+[32m+[m[32m                "url": "https://github.com/sponsors/eemeli"[m
+[32m+[m[32m            }[m
+[32m+[m[32m        },[m
+         "node_modules/yargs": {[m
+             "version": "17.7.2",[m
+             "resolved": "https://registry.npmjs.org/yargs/-/yargs-17.7.2.tgz",[m
+[36m@@ -10585,6 +11176,35 @@[m
+             "peerDependencies": {[m
+                 "zod": "^3.25.0 || ^4.0.0"[m
+             }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "node_modules/zustand": {[m
+[32m+[m[32m            "version": "5.0.12",[m
+[32m+[m[32m            "resolved": "https://registry.npmjs.org/zustand/-/zustand-5.0.12.tgz",[m
+[32m+[m[32m            "integrity": "sha512-i77ae3aZq4dhMlRhJVCYgMLKuSiZAaUPAct2AksxQ+gOtimhGMdXljRT21P5BNpeT4kXlLIckvkPM029OljD7g==",[m
+[32m+[m[32m            "license": "MIT",[m
+[32m+[m[32m            "engines": {[m
+[32m+[m[32m                "node": ">=12.20.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependencies": {[m
+[32m+[m[32m                "@types/react": ">=18.0.0",[m
+[32m+[m[32m                "immer": ">=9.0.6",[m
+[32m+[m[32m                "react": ">=18.0.0",[m
+[32m+[m[32m                "use-sync-external-store": ">=1.2.0"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "peerDependenciesMeta": {[m
+[32m+[m[32m                "@types/react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                },[m
+[32m+[m[32m                "immer": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                },[m
+[32m+[m[32m                "react": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                },[m
+[32m+[m[32m                "use-sync-external-store": {[m
+[32m+[m[32m                    "optional": true[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+         }[m
+     }[m
+ }[m
+[1mdiff --git a/package.json b/package.json[m
+[1mindex a965c26..fa3cd5c 100644[m
+[1m--- a/package.json[m
+[1m+++ b/package.json[m
+[36m@@ -29,9 +29,12 @@[m
+         "typescript-eslint": "^8.23.0"[m
+     },[m
+     "dependencies": {[m
+[32m+[m[32m        "@emotion/react": "^11.14.0",[m
+[32m+[m[32m        "@emotion/styled": "^11.14.1",[m
+         "@headlessui/react": "^2.2.0",[m
+         "@inertiajs/react": "^3.0.0",[m
+         "@inertiajs/vite": "^3.0.0",[m
+[32m+[m[32m        "@mui/material": "^9.0.0",[m
+         "@radix-ui/react-avatar": "^1.1.3",[m
+         "@radix-ui/react-checkbox": "^1.1.4",[m
+         "@radix-ui/react-collapsible": "^1.1.3",[m
+[36m@@ -66,7 +69,8 @@[m
+         "tailwindcss": "^4.0.0",[m
+         "tw-animate-css": "^1.4.0",[m
+         "typescript": "^5.7.2",[m
+[31m-        "vite": "^8.0.0"[m
+[32m+[m[32m        "vite": "^8.0.0",[m
+[32m+[m[32m        "zustand": "^5.0.12"[m
+     },[m
+     "optionalDependencies": {[m
+         "@rollup/rollup-linux-x64-gnu": "4.9.5",[m
+[1mdiff --git a/resources/js/components/GlobalAlert.tsx b/resources/js/components/GlobalAlert.tsx[m
+[1mnew file mode 100644[m
+[1mindex 0000000..8b72a15[m
+[1m--- /dev/null[m
+[1m+++ b/resources/js/components/GlobalAlert.tsx[m
+[36m@@ -0,0 +1,25 @@[m
+[32m+[m[32mimport Alert from '@mui/material/Alert';[m
+[32m+[m[32mimport Snackbar from '@mui/material/Snackbar';[m
+[32m+[m[32mimport { useToast } from '@/store/features/notification/toast';[m
+[32m+[m
+[32m+[m[32mexport default function GlobalAlert() {[m
+[32m+[m[32m    const { open, message, type, hide  } = useToast();[m
+[32m+[m
+[32m+[m[32m    return ([m
+[32m+[m[32m        <Snackbar[m
+[32m+[m[32m            open={open}[m
+[32m+[m[32m            autoHideDuration={3000}[m
+[32m+[m[32m            onClose={hide}[m
+[32m+[m[32m            anchorOrigin={{ vertical: 'top', horizontal: 'right' }}[m
+[32m+[m[32m        >[m
+[32m+[m[32m            <Alert[m
+[32m+[m[32m                onClose={hide}[m
+[32m+[m[32m                severity={type}[m
+[32m+[m[32m                variant="filled"[m
+[32m+[m[32m                sx={{ width: '100%' }}[m
+[32m+[m[32m            >[m
+[32m+[m[32m                {message}[m
+[32m+[m[32m            </Alert>[m
+[32m+[m[32m        </Snackbar>[m
+[32m+[m[32m    );[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/resources/js/components/app-header.tsx b/resources/js/components/app-header.tsx[m
+[1mindex 358db7d..54f7f29 100644[m
+[1m--- a/resources/js/components/app-header.tsx[m
+[1m+++ b/resources/js/components/app-header.tsx[m
+[36m@@ -11,6 +11,7 @@[m [mimport {[m
+     ClipboardCheck,[m
+     Ticket,[m
+     ShoppingBag,[m
+[32m+[m[32m    Store,[m
+ } from 'lucide-react';[m
+ import AppLogo from '@/components/app-logo';[m
+ import AppLogoIcon from '@/components/app-logo-icon';[m
+[36m@@ -55,7 +56,7 @@[m [mimport {[m
+ [m
+ import { orders as customerOrders } from '@/routes/customer';[m
+ [m
+[31m-import { products as sellerProducts } from '@/routes/seller';[m
+[32m+[m[32mimport { products as sellerProducts, store as sellerStore} from '@/routes/seller';[m
+ [m
+ import type { BreadcrumbItem, NavItem } from '@/types';[m
+ [m
+[36m@@ -120,6 +121,16 @@[m [mexport function AppHeader({ breadcrumbs = [] }: Props) {[m
+                 break;[m
+             case 'seller':[m
+                 baseItems.push([m
+[32m+[m[32m                    {[m
+[32m+[m[32m                        title: 'Dashboard',[m
+[32m+[m[32m                        href: dashboard(),[m
+[32m+[m[32m                        icon: LayoutGrid,[m
+[32m+[m[32m                    },[m
+[32m+[m[32m                    {[m
+[32m+[m[32m                        title: 'Store',[m
+[32m+[m[32m                        href: sellerStore(),[m
+[32m+[m[32m                        icon: Store,[m
+[32m+[m[32m                    },[m
+                     {[m
+                         title: 'Products',[m
+                         href: sellerProducts(),[m
+[1mdiff --git a/resources/js/components/app-logo.tsx b/resources/js/components/app-logo.tsx[m
+[1mindex edf6517..bc38506 100644[m
+[1m--- a/resources/js/components/app-logo.tsx[m
+[1m+++ b/resources/js/components/app-logo.tsx[m
+[36m@@ -1,24 +1,25 @@[m
+[31m-import { usePage } from '@inertiajs/react';[m
+[32m+[m[32m// import { usePage } from '@inertiajs/react';[m
+ [m
+ export default function AppLogo() {[m
+[31m-    const { name } = usePage().props as any;[m
+[32m+[m[32m    // const { name } = usePage().props as any;[m
+ [m
+     return ([m
+         <>[m
+[31m-            <div className="flex size-8 items-center justify-center rounded-md ">[m
+[32m+[m[32m            <div className="flex size-8 items-center justify-center rounded-md">[m
+                 <img[m
+[31m-                    src="/logo.svg" [m
+[32m+[m[32m                    src="/logo.svg"[m
+                     alt="ShopHub Logo"[m
+[31m-                    className="h-10 w-10 "[m
+[32m+[m[32m                    className="h-10 w-10"[m
+                 />{' '}[m
+             </div>[m
+ [m
+             <div className="ml-1 grid flex-1 text-left text-sm">[m
+[31m-                <div className="ml-1 grid flex-1 text-left text-sm">[m
+[31m-                    <span className="mb-0.5 truncate bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-xl leading-tight font-bold text-transparent">[m
+[31m-                        {name ? name : 'Default App Name'}[m
+[32m+[m[32m                <span className="mb-0.5 truncate text-xl leading-tight font-bold">[m
+[32m+[m[32m                    <span className="text-xl font-bold">[m
+[32m+[m[32m                        <span className="text-white ">Shop</span>[m
+[32m+[m[32m                        <span className="text-orange-500">Hub</span>[m
+                     </span>[m
+[31m-                </div>[m
+[32m+[m[32m                </span>[m
+             </div>[m
+         </>[m
+     );[m
+[1mdiff --git a/resources/js/components/ui/FilledAlerts.tsx b/resources/js/components/ui/FilledAlerts.tsx[m
+[1mnew file mode 100644[m
+[1mindex 0000000..a9083bf[m
+[1m--- /dev/null[m
+[1m+++ b/resources/js/components/ui/FilledAlerts.tsx[m
+[36m@@ -0,0 +1,21 @@[m
+[32m+[m[32mimport Alert from '@mui/material/Alert';[m
+[32m+[m[32mimport Stack from '@mui/material/Stack';[m
+[32m+[m
+[32m+[m[32mexport default function FilledAlerts() {[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <Stack sx={{ width: '100%' }} spacing={2}>[m
+[32m+[m[32m      <Alert variant="filled" severity="success">[m
+[32m+[m[32m        This is a filled success Alert.[m
+[32m+[m[32m      </Alert>[m
+[32m+[m[32m      <Alert variant="filled" severity="info">[m
+[32m+[m[32m        This is a filled info Alert.[m
+[32m+[m[32m      </Alert>[m
+[32m+[m[32m      <Alert variant="filled" severity="warning">[m
+[32m+[m[32m        This is a filled warning Alert.[m
+[32m+[m[32m      </Alert>[m
+[32m+[m[32m      <Alert variant="filled" severity="error">[m
+[32m+[m[32m        This is a filled error Alert.[m
+[32m+[m[32m      </Alert>[m
+[32m+[m[32m    </Stack>[m
+[32m+[m[32m  );[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/resources/js/components/ui/TableActions.tsx b/resources/js/components/ui/TableActions.tsx[m
+[1mindex 1960579..e0e9f03 100644[m
+[1m--- a/resources/js/components/ui/TableActions.tsx[m
+[1m+++ b/resources/js/components/ui/TableActions.tsx[m
+[36m@@ -1,4 +1,4 @@[m
+[31m-import { MoreHorizontalIcon, Trash, Pencil, Eye } from "lucide-react";[m
+[32m+[m[32mimport { MoreHorizontalIcon, Trash, Pencil, Eye, FileInput } from "lucide-react";[m
+ [m
+ import { Button } from "@/components/ui/button";[m
+ import {[m
+[36m@@ -15,13 +15,16 @@[m [mtype TableActionsProps = {[m
+     onDelete?: () => void;[m
+     onDuplicate?: () => void;[m
+     onView?: () => void;[m
+[32m+[m[32m    onReview?: () => void;[m
+ };[m
+ [m
+ export default function TableActions({[m
+     onEdit,[m
+     onDelete,[m
+     onDuplicate,[m
+[31m-    onView[m
+[32m+[m[32m    onView,[m
+[32m+[m[32m    onReview,[m
+[32m+[m[41m    [m
+ }: TableActionsProps) {[m
+     return ([m
+         <DropdownMenu>[m
+[36m@@ -32,6 +35,13 @@[m [mexport default function TableActions({[m
+             </DropdownMenuTrigger>[m
+ [m
+             <DropdownMenuContent align="end">[m
+[32m+[m[32m                {onReview && ([m
+[32m+[m[32m                    <DropdownMenuItem onClick={onReview}[m
+[32m+[m[32m                       >[m
+[32m+[m[32m                        <FileInput  className="size-4 mr-2 text-green-600 hover:text-primary" />[m
+[32m+[m[32m                        Review Application[m
+[32m+[m[32m                    </DropdownMenuItem>[m
+[32m+[m[32m                )}[m
+                 {onView && ([m
+                     <DropdownMenuItem onClick={onView}[m
+                        >[m
+[1mdiff --git a/resources/js/layouts/app-layout.tsx b/resources/js/layouts/app-layout.tsx[m
+[1mindex c8f732f..d93c63c 100644[m
+[1m--- a/resources/js/layouts/app-layout.tsx[m
+[1m+++ b/resources/js/layouts/app-layout.tsx[m
+[36m@@ -1,3 +1,4 @@[m
+[32m+[m[32mimport GlobalAlert from '@/components/GlobalAlert';[m
+ import AppLayoutTemplate from '@/layouts/app/app-header-layout';[m
+ import type { BreadcrumbItem } from '@/types';[m
+ [m
+[36m@@ -10,6 +11,7 @@[m [mexport default function AppLayout({[m
+ }) {[m
+     return ([m
+         <AppLayoutTemplate breadcrumbs={breadcrumbs}>[m
+[32m+[m[32m            <GlobalAlert />[m
+             {children}[m
+         </AppLayoutTemplate>[m
+     );[m
+[1mdiff --git a/resources/js/pages/admin/User/Review.tsx b/resources/js/pages/admin/User/Review.tsx[m
+[1mnew file mode 100644[m
+[1mindex 0000000..5182aef[m
+[1m--- /dev/null[m
+[1m+++ b/resources/js/pages/admin/User/Review.tsx[m
+[36m@@ -0,0 +1,198 @@[m
+[32m+[m[32mimport { Head, router, usePage } from '@inertiajs/react';[m
+[32m+[m[32mimport { Eye } from 'lucide-react';[m
+[32m+[m[32mimport { useEffect, useState } from 'react';[m
+[32m+[m[32mimport { Button } from '@/components/ui/button';[m
+[32m+[m[32mimport { users } from '@/routes/admin';[m
+[32m+[m[32mimport SellerStoreReviewService from '@/services/SellerStoreReviewService';[m
+[32m+[m[32mimport UserService from '@/services/UserService';[m
+[32m+[m[32mimport type { User } from '@/services/UserService';[m
+[32m+[m[32mimport { useToast } from '@/store/features/notification/toast';[m
+[32m+[m
+[32m+[m[32mexport default function SellerReview() {[m
+[32m+[m[32m    const { userId } = usePage().props as unknown as { userId: number };[m
+[32m+[m[32m    const [openPreview, setOpenPreview] = useState(false);[m
+[32m+[m[32m    const [user, setUser] = useState<User | null>(null);[m
+[32m+[m[32m    const [loading, setLoading] = useState(true);[m
+[32m+[m[32m    const { show } = useToast();[m
+[32m+[m[32m    useEffect(() => {[m
+[32m+[m[32m        fetchUser();[m
+[32m+[m[32m    }, [userId]);[m
+[32m+[m
+[32m+[m[32m    const fetchUser = async () => {[m
+[32m+[m[32m        setLoading(true);[m
+[32m+[m
+[32m+[m[32m        try {[m
+[32m+[m[32m            const res = await UserService.getUserById(userId);[m
+[32m+[m
+[32m+[m[32m            setUser(res);[m
+[32m+[m[32m        } catch (error) {[m
+[32m+[m[32m            console.error(error);[m
+[32m+[m[32m        } finally {[m
+[32m+[m[32m            setLoading(false);[m
+[32m+[m[32m        }[m
+[32m+[m[32m    };[m
+[32m+[m
+[32m+[m[32m    const handleApprove = async () => {[m
+[32m+[m[32m        if (!user) {[m
+[32m+[m[32m            return;[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        try {[m
+[32m+[m[32m            await SellerStoreReviewService.approveSeller(user.id);[m
+[32m+[m
+[32m+[m[32m            show('Seller approved successfully', 'success');[m
+[32m+[m
+[32m+[m[32m            router.visit(users());[m
+[32m+[m[32m        } catch (error) {[m
+[32m+[m[32m            show('Failed to approve seller', 'error');[m
+[32m+[m[32m            console.error(error);[m
+[32m+[m[32m        }[m
+[32m+[m[32m    };[m
+[32m+[m
+[32m+[m[32m    const handleReject = async () => {[m
+[32m+[m[32m        if (!user) {[m
+[32m+[m[32m            return;[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        const note = prompt('Reason for rejection?');[m
+[32m+[m
+[32m+[m[32m        if (!note) {[m
+[32m+[m[32m            return;[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        try {[m
+[32m+[m[32m            await SellerStoreReviewService.rejectSeller(user.id, note);[m
+[32m+[m
+[32m+[m[32m            show('Seller rejected successfully', 'success');[m
+[32m+[m
+[32m+[m[32m            router.visit(users());[m
+[32m+[m[32m        } catch (error) {[m
+[32m+[m[32m            show('Failed to reject seller', 'error');[m
+[32m+[m[32m            console.error(error);[m
+[32m+[m[32m        }[m
+[32m+[m[32m    };[m
+[32m+[m
+[32m+[m[32m    if (loading) {[m
+[32m+[m[32m        return <p className="p-6">Loading...</p>;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if (!user) {[m
+[32m+[m[32m        return <p className="p-6">No user found.</p>;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    const profile = user.seller_profile;[m
+[32m+[m
+[32m+[m[32m    return ([m
+[32m+[m[32m        <>[m
+[32m+[m[32m            <Head title="Seller Applications" />[m
+[32m+[m
+[32m+[m[32m            <div className="space-y-6 p-6">[m
+[32m+[m[32m                <h1 className="text-2xl font-semibold">[m
+[32m+[m[32m                    Seller Application Review[m
+[32m+[m[32m                </h1>[m
+[32m+[m
+[32m+[m[32m                {/* USER INFO */}[m
+[32m+[m[32m                <div className="rounded-xl border bg-white p-5 shadow-sm">[m
+[32m+[m[32m                    <h2 className="text-lg font-semibold">{user.name}</h2>[m
+[32m+[m[32m                    <p className="text-sm text-gray-500">{user.email}</p>[m
+[32m+[m
+[32m+[m[32m                    <span className="mt-2 inline-block rounded-full bg-yellow-100 px-2 py-1 text-xs text-yellow-700">[m
+[32m+[m[32m                        {profile?.status ?? 'No Status'}[m
+[32m+[m[32m                    </span>[m
+[32m+[m
+[32m+[m[32m                    {/* STORE */}[m
+[32m+[m[32m                    <div className="mt-4 text-sm">[m
+[32m+[m[32m                        <p>[m
+[32m+[m[32m                            <strong>Store:</strong> {profile?.store_name}[m
+[32m+[m[32m                        </p>[m
+[32m+[m[32m                        <p className="text-gray-600">[m
+[32m+[m[32m                            {profile?.store_description}[m
+[32m+[m[32m                        </p>[m
+[32m+[m[32m                    </div>[m
+[32m+[m
+[32m+[m[32m                    {/* DOCUMENT */}[m
+[32m+[m[32m                    <div className="mt-3">[m
+[32m+[m[32m                        {profile?.business_license ? ([m
+[32m+[m[32m                            <>[m
+[32m+[m[32m                                <Button[m
+[32m+[m[32m                                    onClick={() => setOpenPreview(true)}[m
+[32m+[m[32m                                    className="group flex items-center gap-2 rounded-md border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-600 shadow-sm transition-all hover:bg-blue-50 hover:shadow-md"[m
+[32m+[m[32m                                >[m
+[32m+[m[32m                                    <Eye className="h-4 w-4 transition-transform group-hover:scale-110" />[m
+[32m+[m[32m                                    <span>Preview Document</span>[m
+[32m+[m[32m                                </Button>[m
+[32m+[m
+[32m+[m[32m                                {/* MODAL */}[m
+[32m+[m[32m                                {openPreview && ([m
+[32m+[m[32m                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">[m
+[32m+[m[32m                                        <div className="w-[80%] rounded-lg bg-primary p-4">[m
+[32m+[m[32m                                            <div className="mb-3 flex items-center justify-between">[m
+[32m+[m[32m                                                <h2 className="text-sm font-semibold text-secondary">[m
+[32m+[m[32m                                                    Document Preview[m
+[32m+[m[32m                                                </h2>[m
+[32m+[m
+[32m+[m[32m                                                <Button[m
+[32m+[m[32m                                                    variant="destructive"[m
+[32m+[m[32m                                                    onClick={() =>[m
+[32m+[m[32m                                                        setOpenPreview(false)[m
+[32m+[m[32m                                                    }[m
+[32m+[m[32m                                                >[m
+[32m+[m[32m                                                    Close[m
+[32m+[m[32m                                                </Button>[m
+[32m+[m[32m                                            </div>[m
+[32m+[m
+[32m+[m[32m                                            <iframe[m
+[32m+[m[32m                                                src={profile.business_license}[m
+[32m+[m[32m                                                className="h-150 w-full rounded-md border"[m
+[32m+[m[32m                                            />[m
+[32m+[m[32m                                        </div>[m
+[32m+[m[32m                                    </div>[m
+[32m+[m[32m                                )}[m
+[32m+[m[32m                            </>[m
+[32m+[m[32m                        ) : ([m
+[32m+[m[32m                            <p className="text-xs text-gray-400">[m
+[32m+[m[32m                                No document uploaded[m
+[32m+[m[32m                            </p>[m
+[32m+[m[32m                        )}[m
+[32m+[m[32m                    </div>[m
+[32m+[m
+[32m+[m[32m                    {/* BANK */}[m
+[32m+[m[32m                    <div className="mt-3 text-sm">[m
+[32m+[m[32m                        <p>[m
+[32m+[m[32m                            <strong>Bank:</strong> {profile?.bank_name}[m
+[32m+[m[32m                        </p>[m
+[32m+[m[32m                        <p>{profile?.bank_account_name}</p>[m
+[32m+[m[32m                        <p>{profile?.bank_account_number}</p>[m
+[32m+[m[32m                    </div>[m
+[32m+[m
+[32m+[m[32m                    {/* ACTIONS */}[m
+[32m+[m[32m                    <div className="mt-5 flex gap-3">[m
+[32m+[m[32m                        <Button[m
+[32m+[m[32m                            onClick={handleApprove}[m
+[32m+[m[32m                            className="bg-green-600 hover:bg-green-700"[m
+[32m+[m[32m                        >[m
+[32m+[m[32m                            Approve[m
+[32m+[m[32m                        </Button>[m
+[32m+[m
+[32m+[m[32m                        <Button onClick={handleReject} variant="destructive">[m
+[32m+[m[32m                            Reject[m
+[32m+[m[32m                        </Button>[m
+[32m+[m[32m                    </div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m        </>[m
+[32m+[m[32m    );[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mSellerReview.layout = {[m
+[32m+[m[32m    breadcrumbs: [[m
+[32m+[m[32m        {[m
+[32m+[m[32m            title: 'Users',[m
+[32m+[m[32m            href: users(),[m
+[32m+[m[32m        },[m
+[32m+[m[32m        {[m
+[32m+[m[32m            title: 'Seller Application Review',[m
+[32m+[m[32m            href: '#',[m
+[32m+[m[32m        },[m
+[32m+[m[32m    ],[m
+[32m+[m[32m};[m
+[1mdiff --git a/resources/js/pages/admin/User/ReviewApplication.tsx b/resources/js/pages/admin/User/ReviewApplication.tsx[m
+[1mnew file mode 100644[m
+[1mindex 0000000..dd0c0db[m
+[1m--- /dev/null[m
+[1m+++ b/resources/js/pages/admin/User/ReviewApplication.tsx[m
+[36m@@ -0,0 +1,7 @@[m
+[32m+[m[32mimport React from 'react'[m
+[32m+[m
+[32m+[m[32mexport default function ReviewApplication() {[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <div>ReviewApplication</div>[m
+[32m+[m[32m  )[m
+[32m+[m[32m}[m
+[1mdiff --git a/resources/js/pages/admin/User/Users.tsx b/resources/js/pages/admin/User/Users.tsx[m
+[1mindex 7ed2d50..9a663b8 100644[m
+[1m--- a/resources/js/pages/admin/User/Users.tsx[m
+[1m+++ b/resources/js/pages/admin/User/Users.tsx[m
+[36m@@ -1,5 +1,6 @@[m
+[31m-import { Head } from '@inertiajs/react';[m
+[32m+[m[32mimport { Head, router } from '@inertiajs/react';[m
+ import { useEffect, useState } from 'react';[m
+[32m+[m
+ import DataTable from '@/components/ui/DataTable';[m
+ import {[m
+     Select,[m
+[36m@@ -16,6 +17,13 @@[m [mimport { users } from '@/routes/admin';[m
+ import type { User } from '@/services/UserService';[m
+ import UserService from '@/services/UserService';[m
+ [m
+[32m+[m[32mconst statusLabel = {[m
+[32m+[m[32m    pending: 'Pending Review',[m
+[32m+[m[32m    approved: 'Approved',[m
+[32m+[m[32m    rejected: 'Rejected',[m
+[32m+[m[32m    suspended: 'Suspended',[m
+[32m+[m[32m};[m
+[32m+[m
+ export default function Users() {[m
+     const [usersData, setUsersData] = useState<User[]>([]);[m
+     const [loading, setLoading] = useState(true);[m
+[36m@@ -40,6 +48,7 @@[m [mexport default function Users() {[m
+         fetchUsers();[m
+     }, []);[m
+ [m
+[32m+[m[32m    const needsReview = (user: User) => user.role === 'seller';[m
+     const fetchUsers = async (page = 1) => {[m
+         setLoading(true);[m
+ [m
+[36m@@ -114,15 +123,65 @@[m [mexport default function Users() {[m
+                 </span>[m
+             ),[m
+         },[m
+[32m+[m[32m        {[m
+[32m+[m[32m            label: 'Business Status',[m
+[32m+[m[32m            render: (user: User) => {[m
+[32m+[m[32m                if (user.role !== 'seller') {[m
+[32m+[m[32m                    return ([m
+[32m+[m[32m                        <div className="flex">[m
+[32m+[m[32m                            <span className="text-xs text-gray-400">N/A</span>[m
+[32m+[m[32m                        </div>[m
+[32m+[m[32m                    );[m
+[32m+[m[32m                }[m
+[32m+[m
+[32m+[m[32m                const status = user.seller_profile?.status;[m
+[32m+[m
+[32m+[m[32m                if (!status) {[m
+[32m+[m[32m                    return ([m
+[32m+[m[32m                        <div className="flex">[m
+[32m+[m[32m                            <span className="text-xs text-gray-400">—</span>[m
+[32m+[m[32m                        </div>[m
+[32m+[m[32m                    );[m
+[32m+[m[32m                }[m
+[32m+[m
+[32m+[m[32m                return ([m
+[32m+[m[32m                    <div className="justify flex">[m
+[32m+[m[32m                        <span[m
+[32m+[m[32m                            className={`rounded-full px-2 py-1 text-xs ${[m
+[32m+[m[32m                                status === 'approved'[m
+[32m+[m[32m                                    ? 'bg-green-100 text-green-700'[m
+[32m+[m[32m                                    : status === 'pending'[m
+[32m+[m[32m                                      ? 'bg-yellow-100 text-yellow-700'[m
+[32m+[m[32m                                      : status === 'rejected'[m
+[32m+[m[32m                                        ? 'bg-red-100 text-red-700'[m
+[32m+[m[32m                                        : 'bg-gray-100 text-gray-700'[m
+[32m+[m[32m                            }`}[m
+[32m+[m[32m                        >[m
+[32m+[m[32m                            {statusLabel[status as keyof typeof statusLabel] ??[m
+[32m+[m[32m                                status}[m
+[32m+[m[32m                        </span>[m
+[32m+[m[32m                    </div>[m
+[32m+[m[32m                );[m
+[32m+[m[32m            },[m
+[32m+[m[32m        },[m
+         {[m
+             label: 'Action',[m
+             className: 'text-left',[m
+[31m-            render: (user: User) => ([m
+[31m-                <TableActions[m
+[31m-                    onEdit={() => console.log('Edit', user.id)}[m
+[31m-                    onDelete={() => console.log('Delete', user.id)}[m
+[31m-                />[m
+[31m-            ),[m
+[32m+[m[32m            render: (user: User) =>[m
+[32m+[m[32m                needsReview(user) ? ([m
+[32m+[m[32m                    <TableActions[m
+[32m+[m[32m                        onReview={() =>[m
+[32m+[m[32m                            router.visit(`/admin/seller/${user.id}/review`)[m
+[32m+[m[32m                        }[m
+[32m+[m[32m                        onEdit={() => console.log('Edit', user.id)}[m
+[32m+[m[32m                        onDelete={() => console.log('Delete', user.id)}[m
+[32m+[m[32m                    />[m
+[32m+[m[32m                ) : ([m
+[32m+[m[32m                    <TableActions[m
+[32m+[m[32m                        onEdit={() => console.log('Edit', user.id)}[m
+[32m+[m[32m                        onDelete={() => console.log('Delete', user.id)}[m
+[32m+[m[32m                    />[m
+[32m+[m[32m                ),[m
+         },[m
+     ];[m
+ [m
+[36m@@ -139,7 +198,6 @@[m [mexport default function Users() {[m
+                             Manage your platform users[m
+                         </p>[m
+                     </div>[m
+[31m-[m
+                     {/* Search & Filters */}[m
+                     <div className="flex flex-col gap-2 sm:flex-row">[m
+                         <input[m
+[36m@@ -210,6 +268,13 @@[m [mexport default function Users() {[m
+                             Apply[m
+                         </button>[m
+                     </div>[m
+[32m+[m
+[32m+[m[32m                    <button[m
+[32m+[m[32m                        onClick={() => router.visit('/admin/sellers/review')}[m
+[32m+[m[32m                        className="flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600"[m
+[32m+[m[32m                    >[m
+[32m+[m[32m                        Review Applications →[m
+[32m+[m[32m                    </button>[m
+                 </div>[m
+ [m
+                 {/* Table */}[m
+[1mdiff --git a/resources/js/pages/auth/register.tsx b/resources/js/pages/auth/register.tsx[m
+[1mindex 1388438..e31eb70 100644[m
+[1m--- a/resources/js/pages/auth/register.tsx[m
+[1m+++ b/resources/js/pages/auth/register.tsx[m
+[36m@@ -8,7 +8,6 @@[m [mimport {[m
+     CreditCardIcon,[m
+     FileTextIcon,[m
+     PhoneIcon,[m
+[31m-    [m
+ } from 'lucide-react';[m
+ import { useState } from 'react';[m
+ import InputError from '@/components/input-error';[m
+[36m@@ -126,6 +125,11 @@[m [mexport default function Register() {[m
+                         {({ processing, errors }) => ([m
+                             <>[m
+                                 <div className="grid gap-5">[m
+[32m+[m[32m                                    <input[m
+[32m+[m[32m                                        type="hidden"[m
+[32m+[m[32m                                        name="role"[m
+[32m+[m[32m                                        value="customer"[m
+[32m+[m[32m                                    />[m
+                                     {/* Name Field */}[m
+                                     <div className="grid gap-2">[m
+                                         <Label[m
+[36m@@ -324,9 +328,8 @@[m [mexport default function Register() {[m
+                 {accountType === 'seller' && ([m
+                     <Form[m
+                         method="post"[m
+[31m-                        action="/register/seller"[m
+[32m+[m[32m                        action="/register"[m
+                         encType="multipart/form-data"[m
+[31m-                        className="flex max-h-150 flex-col gap-6 overflow-y-auto pr-2"[m
+                     >[m
+                         {({ processing, errors }) => ([m
+                             <>[m
+[36m@@ -339,6 +342,11 @@[m [mexport default function Register() {[m
+                                         </h3>[m
+ [m
+                                         <div className="grid gap-4">[m
+[32m+[m[32m                                            <input[m
+[32m+[m[32m                                                type="hidden"[m
+[32m+[m[32m                                                name="role"[m
+[32m+[m[32m                                                value="seller"[m
+[32m+[m[32m                                            />[m
+                                             <div className="grid gap-2">[m
+                                                 <Label[m
+                                                     htmlFor="seller_name"[m
+[36m@@ -355,7 +363,7 @@[m [mexport default function Register() {[m
+                                                     required[m
+                                                     name="name"[m
+                                                     placeholder="John Doe"[m
+[31m-                                                    className="h-10"[m
+[32m+[m[32m                                                    className="h-10 text-secondary"[m
+                                                 />[m
+                                                 <InputError[m
+                                                     message={errors.name}[m
+[36m@@ -378,7 +386,7 @@[m [mexport default function Register() {[m
+                                                     required[m
+                                                     name="email"[m
+                                                     placeholder="business@example.com"[m
+[31m-                                                    className="h-10"[m
+[32m+[m[32m                                                    className="h-10 text-secondary"[m
+                                                 />[m
+                                                 <InputError[m
+                                                     message={errors.email}[m
+[36m@@ -401,7 +409,7 @@[m [mexport default function Register() {[m
+                                                     required[m
+                                                     name="phone"[m
+                                                     placeholder="+1 234 567 8900"[m
+[31m-                                                    className="h-10"[m
+[32m+[m[32m                                                    className="h-10 text-secondary"[m
+                                                 />[m
+                                                 <InputError[m
+                                                     message={errors.phone}[m
+[36m@@ -423,7 +431,7 @@[m [mexport default function Register() {[m
+                                                     required[m
+                                                     name="password"[m
+                                                     placeholder="Create a password"[m
+[31m-                                                    className="h-10"[m
+[32m+[m[32m                                                    className="h-10 text-secondary"[m
+                                                 />[m
+                                                 <InputError[m
+                                                     message={errors.password}[m
+[36m@@ -445,7 +453,7 @@[m [mexport default function Register() {[m
+                                                     required[m
+                                                     name="password_confirmation"[m
+                                                     placeholder="Confirm password"[m
+[31m-                                                    className="h-10"[m
+[32m+[m[32m                                                    className="h-10 text-secondary"[m
+                                                 />[m
+                                                 <InputError[m
+                                                     message={[m
+[36m@@ -467,7 +475,7 @@[m [mexport default function Register() {[m
+                                             <div className="grid gap-2">[m
+                                                 <Label[m
+                                                     htmlFor="store_name"[m
+[31m-                                                    className="text-sm font-semibold text-gray-900 "[m
+[32m+[m[32m                                                    className="text-sm font-semibold text-gray-900"[m
+                                                 >[m
+                                                     Store Name{' '}[m
+                                                     <span className="text-red-500">[m
+[36m@@ -480,7 +488,7 @@[m [mexport default function Register() {[m
+                                                     required[m
+                                                     name="store_name"[m
+                                                     placeholder="Amazing Electronics Store"[m
+[31m-                                                    className="h-10"[m
+[32m+[m[32m                                                    className="h-10 text-secondary"[m
+                                                 />[m
+                                                 <InputError[m
+                                                     message={errors.store_name}[m
+[36m@@ -502,7 +510,7 @@[m [mexport default function Register() {[m
+                                                     name="store_description"[m
+                                                     required[m
+                                                     rows={4}[m
+[31m-                                                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-purple-500 focus:outline-none"[m
+[32m+[m[32m                                                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-secondary focus:border-transparent focus:ring-2 focus:ring-purple-500 focus:outline-none"[m
+                                                     placeholder="Tell customers about your store, what products you sell, and why they should buy from you..."[m
+                                                 />[m
+                                                 <p className="text-xs text-gray-500">[m
+[36m@@ -621,7 +629,7 @@[m [mexport default function Register() {[m
+                                                     id="bank_name"[m
+                                                     name="bank_name"[m
+                                                     required[m
+[31m-                                                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none text-gray-900"[m
+[32m+[m[32m                                                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"[m
+                                                 >[m
+                                                     <option value="">[m
+                                                         Select Bank[m
+[36m@@ -670,7 +678,7 @@[m [mexport default function Register() {[m
+                                                     required[m
+                                                     name="bank_account_name"[m
+                                                     placeholder="Name as it appears on bank account"[m
+[31m-                                                    className="h-10"[m
+[32m+[m[32m                                                    className="h-10 text-secondary"[m
+                                                 />[m
+                                                 <InputError[m
+                                                     message={[m
+[36m@@ -695,7 +703,7 @@[m [mexport default function Register() {[m
+                                                     required[m
+                                                     name="bank_account_number"[m
+                                                     placeholder="1234567890"[m
+[31m-                                                    className="h-10"[m
+[32m+[m[32m                                                    className="h-10 text-secondary"[m
+                                                 />[m
+                                                 <InputError[m
+                                                     message={[m
+[36m@@ -784,7 +792,5 @@[m [mfunction UploadIcon(props: React.SVGProps<SVGSVGElement>) {[m
+ // Layout configuration[m
+ Register.layout = {[m
+     title: 'Create an account',[m
+[31m-    description:[m
+[31m-        [m
+[31m-   'Join thousands of happy shoppers on our platform',[m
+[32m+[m[32m    description: 'Join thousands of happy shoppers on our platform',[m
+ };[m
+[1mdiff --git a/resources/js/pages/auth/verify-email.tsx b/resources/js/pages/auth/verify-email.tsx[m
+[1mindex f28dc03..91f62ba 100644[m
+[1m--- a/resources/js/pages/auth/verify-email.tsx[m
+[1m+++ b/resources/js/pages/auth/verify-email.tsx[m
+[36m@@ -6,9 +6,9 @@[m [mimport TextLink from '@/components/text-link';[m
+ import { Button } from '@/components/ui/button';[m
+ import { Spinner } from '@/components/ui/spinner';[m
+ import { logout } from '@/routes';[m
+[32m+[m[32mimport { dashboard } from '@/routes';[m
+ import { send } from '@/routes/verification';[m
+ [m
+[31m-[m
+ export default function VerifyEmail({ status }: { status?: string }) {[m
+     const { props } = usePage();[m
+     const user = props.auth.user;[m
+[36m@@ -19,7 +19,7 @@[m [mexport default function VerifyEmail({ status }: { status?: string }) {[m
+     useEffect(() => {[m
+         // If already verified, redirect to dashboard[m
+         if (isVerified) {[m
+[31m-            router.visit('/dashboard'); // or wherever your dashboard route is[m
+[32m+[m[32m           router.visit(dashboard()); // or wherever your dashboard route is[m
+         }[m
+     }, [isVerified]);[m
+ [m
+[1mdiff --git a/resources/js/pages/seller/store/Store.tsx b/resources/js/pages/seller/store/Store.tsx[m
+[1mnew file mode 100644[m
+[1mindex 0000000..71c484c[m
+[1m--- /dev/null[m
+[1m+++ b/resources/js/pages/seller/store/Store.tsx[m
+[36m@@ -0,0 +1,7 @@[m
+[32m+[m[32mimport React from 'react'[m
+[32m+[m
+[32m+[m[32mexport default function Store() {[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <div>Store</div>[m
+[32m+[m[32m  )[m
+[32m+[m[32m}[m
+[1mdiff --git a/resources/js/pages/shop/ShopListing.tsx b/resources/js/pages/shop/ShopListing.tsx[m
+[1mindex b7e896f..f168ba9 100644[m
+[1m--- a/resources/js/pages/shop/ShopListing.tsx[m
+[1m+++ b/resources/js/pages/shop/ShopListing.tsx[m
+[36m@@ -78,7 +78,7 @@[m [mexport default function ShopListing() {[m
+                                     className={`rounded-md border px-4 py-2 transition ${[m
+                                         meta.current_page === 1[m
+                                             ? 'text-secondary opacity-40'[m
+[31m-                                            : 'cursor-pointer border-secondary text-secondary hover:bg-blue-50'[m
+[32m+[m[32m                                            : 'cursor-pointer border-secondary text-secondary hover:bg-secondary'[m
+                                     }`}[m
+                                 />[m
+                             </PaginationItem>[m
+[36m@@ -98,10 +98,11 @@[m [mexport default function ShopListing() {[m
+                                 .map((pageNum) => ([m
+                                     <PaginationItem key={pageNum}>[m
+                                         <PaginationLink[m
+[32m+[m[41m                                   [m
+                                             onClick={() => setPage(pageNum)}[m
+                                             className={`flex h-10 w-10 items-center justify-center rounded-md border font-medium transition ${[m
+                                                 pageNum === meta.current_page[m
+[31m-                                                    ? 'border-secondary bg-secondary text-primary shadow-md'[m
+[32m+[m[32m                                                    ? 'border-secondary bg-secondary hover:bg-primary text-primaryshadow-md'[m
+                                                     : 'border-secondary text-secondary hover:bg-black hover:text-secondary'[m
+                                             }`}[m
+                                         >[m
+[36m@@ -121,7 +122,7 @@[m [mexport default function ShopListing() {[m
+                                     className={`rounded-md border px-4 py-2 transition ${[m
+                                         meta.current_page === meta.last_page[m
+                                             ? 'text-secondary opacity-40'[m
+[31m-                                            : 'cursor-pointer border-secondary text-secondary hover:bg-blue-50'[m
+[32m+[m[32m                                            : 'cursor-pointer border-secondary text-secondary hover:secondary'[m
+                                     }`}[m
+                                 />[m
+                             </PaginationItem>[m
+[1mdiff --git a/resources/js/pages/shop/SingleProduct.tsx b/resources/js/pages/shop/SingleProduct.tsx[m
+[1mindex c427bfc..a3feb76 100644[m
+[1m--- a/resources/js/pages/shop/SingleProduct.tsx[m
+[1m+++ b/resources/js/pages/shop/SingleProduct.tsx[m
+[36m@@ -1,7 +1,137 @@[m
+[31m-import React from 'react'[m
+[32m+[m[32mimport React, { useEffect, useState } from 'react';[m
+[32m+[m[32mimport DummyUserService from '@/services/DummyUserSerive';[m
+ [m
+ export default function SingleProduct() {[m
+[31m-  return ([m
+[31m-    <div>SingleProduct new add </div>[m
+[31m-  )[m
+[32m+[m[32m    const [product, setProduct] = useState<any>(null);[m
+[32m+[m[32m    const [loading, setLoading] = useState(true);[m
+[32m+[m[32m    const [selectedImage, setSelectedImage] = useState<string>('');[m
+[32m+[m
+[32m+[m[32m    useEffect(() => {[m
+[32m+[m[32m        fetchProduct();[m
+[32m+[m[32m    }, []);[m
+[32m+[m
+[32m+[m[32m    const fetchProduct = async () => {[m
+[32m+[m[32m        try {[m
+[32m+[m[32m            const data = await DummyUserService.getProductById(1);[m
+[32m+[m[32m            setProduct(data);[m
+[32m+[m[32m            setSelectedImage(data.thumbnail); // default image[m
+[32m+[m[32m        } catch (error) {[m
+[32m+[m[32m            console.error(error);[m
+[32m+[m[32m        } finally {[m
+[32m+[m[32m            setLoading(false);[m
+[32m+[m[32m        }[m
+[32m+[m[32m    };[m
+[32m+[m
+[32m+[m[32m    if (loading) {[m
+[32m+[m[32m        return <div className="p-6">Loading...</div>;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if (!product) {[m
+[32m+[m[32m        return <div className="p-6">No product found</div>;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    return ([m
+[32m+[m[32m        <div className="mx-auto w-full max-w-6xl p-6">[m
+[32m+[m[32m            <div className="grid grid-cols-2 gap-10">[m
+[32m+[m[32m                {/* LEFT: IMAGE GALLERY */}[m
+[32m+[m[32m                <div>[m
+[32m+[m[32m                    {/* Main Image */}[m
+[32m+[m[32m                    <img[m
+[32m+[m[32m                        src={selectedImage}[m
+[32m+[m[32m                        alt={product.title}[m
+[32m+[m[32m                        className="h-100 w-full rounded-xl border object-cover"[m
+[32m+[m[32m                    />[m
+[32m+[m
+[32m+[m[32m                    {/* Thumbnails */}[m
+[32m+[m[32m                    <div className="mt-4 flex gap-2">[m
+[32m+[m[32m                        {product.images.map((img: string, index: number) => ([m
+[32m+[m[32m                            <img[m
+[32m+[m[32m                                key={index}[m
+[32m+[m[32m                                src={img}[m
+[32m+[m[32m                                onClick={() => setSelectedImage(img)}[m
+[32m+[m[32m                                className={`h-20 w-20 cursor-pointer rounded border object-cover ${[m
+[32m+[m[32m                                    selectedImage === img[m
+[32m+[m[32m                                        ? 'border-blue-500'[m
+[32m+[m[32m                                        : 'border-gray-200'[m
+[32m+[m[32m                                }`}[m
+[32m+[m[32m                            />[m
+[32m+[m[32m                        ))}[m
+[32m+[m[32m                    </div>[m
+[32m+[m[32m                </div>[m
+[32m+[m
+[32m+[m[32m                {/* RIGHT: PRODUCT DETAILS */}[m
+[32m+[m[32m                <div>[m
+[32m+[m[32m                    <h1 className="text-3xl font-bold text-secondary">[m
+[32m+[m[32m                        {product.title}[m
+[32m+[m[32m                    </h1>[m
+[32m+[m
+[32m+[m[32m                    <p className="mt-1 text-sm text-gray-500">[m
+[32m+[m[32m                        Brand: {product.brand}[m
+[32m+[m[32m                    </p>[m
+[32m+[m
+[32m+[m[32m                    {/* Rating */}[m
+[32m+[m[32m                    <p className="mt-2 text-yellow-500">[m
+[32m+[m[32m                        ⭐ {product.rating} / 5[m
+[32m+[m[32m                    </p>[m
+[32m+[m
+[32m+[m[32m                    {/* Price */}[m
+[32m+[m[32m                    <div className="mt-4 flex items-center gap-3">[m
+[32m+[m[32m                        <span className="text-2xl font-bold text-secondary">[m
+[32m+[m[32m                            ₱ {product.price}[m
+[32m+[m[32m                        </span>[m
+[32m+[m[32m                        <span className="text-sm text-red-500">[m
+[32m+[m[32m                            -{product.discountPercentage}%[m
+[32m+[m[32m                        </span>[m
+[32m+[m[32m                    </div>[m
+[32m+[m
+[32m+[m[32m                    {/* Stock */}[m
+[32m+[m[32m                    <p[m
+[32m+[m[32m                        className={`mt-2 text-sm ${[m
+[32m+[m[32m                            product.stock > 0[m
+[32m+[m[32m                                ? 'text-green-600'[m
+[32m+[m[32m                                : 'text-red-500'[m
+[32m+[m[32m                        }`}[m
+[32m+[m[32m                    >[m
+[32m+[m[32m                        {product.stock > 0[m
+[32m+[m[32m                            ? `In Stock (${product.stock})`[m
+[32m+[m[32m                            : 'Out of Stock'}[m
+[32m+[m[32m                    </p>[m
+[32m+[m
+[32m+[m[32m                    {/* Description */}[m
+[32m+[m[32m                    <p className="mt-4 text-gray-600">{product.description}</p>[m
+[32m+[m
+[32m+[m[32m                    {/* Buttons */}[m
+[32m+[m[32m                    <div className="mt-6 flex gap-4">[m
+[32m+[m[32m                        <button className="rounded-lg bg-blue-600 px-6 py-2 text-white">[m
+[32m+[m[32m                            Add to Cart[m
+[32m+[m[32m                        </button>[m
+[32m+[m[32m                        <button className="rounded-lg border px-6 py-2 text-secondary hover:bg-amber-500 hover:text-primary hover:border-amber-500">[m
+[32m+[m[32m                            Buy Now[m
+[32m+[m[32m                        </button>[m
+[32m+[m[32m                    </div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m            </div>[m
+[32m+[m
+[32m+[m[32m            {/* REVIEWS SECTION */}[m
+[32m+[m[32m            <div className="mt-12">[m
+[32m+[m[32m                <h2 className="mb-4 text-xl font-bold text-secondary ">Customer Reviews</h2>[m
+[32m+[m
+[32m+[m[32m                <div className="space-y-4">[m
+[32m+[m[32m                    {product.reviews.map((review: any, index: number) => ([m
+[32m+[m[32m                        <div key={index} className="rounded-lg border p-4">[m
+[32m+[m[32m                            <p className="font-semibold text-secondary">[m
+[32m+[m[32m                                {review.reviewerName}[m
+[32m+[m[32m                            </p>[m
+[32m+[m[32m                            <p className="text-yellow-500">[m
+[32m+[m[32m                                ⭐ {review.rating}[m
+[32m+[m[32m                            </p>[m
+[32m+[m[32m                            <p className="mt-1 text-gray-600">[m
+[32m+[m[32m                                {review.comment}[m
+[32m+[m[32m                            </p>[m
+[32m+[m[32m                        </div>[m
+[32m+[m[32m                    ))}[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m    );[m
+ }[m
+[1mdiff --git a/resources/js/services/DummyUserSerive.ts b/resources/js/services/DummyUserSerive.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..b84f46f[m
+[1m--- /dev/null[m
+[1m+++ b/resources/js/services/DummyUserSerive.ts[m
+[36m@@ -0,0 +1,19 @@[m
+[32m+[m[32mimport axios from 'axios';[m
+[32m+[m
+[32m+[m[32mconst DummyUserService = {[m
+[32m+[m[32m    async getProducts() {[m
+[32m+[m[32m        const response = await axios.get('https://dummyjson.com/products');[m
+[32m+[m
+[32m+[m[32m        return response.data;[m
+[32m+[m[32m    },[m
+[32m+[m
+[32m+[m[32m    async getProductById(id: number) {[m
+[32m+[m[32m        const response = await axios.get([m
+[32m+[m[32m            `https://dummyjson.com/products/${id}`,[m
+[32m+[m[32m        );[m
+[32m+[m
+[32m+[m[32m        return response.data;[m
+[32m+[m[32m    },[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m[32mexport default DummyUserService;[m
+[1mdiff --git a/resources/js/services/SellerStoreReviewService.ts b/resources/js/services/SellerStoreReviewService.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..c8158de[m
+[1m--- /dev/null[m
+[1m+++ b/resources/js/services/SellerStoreReviewService.ts[m
+[36m@@ -0,0 +1,17 @@[m
+[32m+[m[32mimport axios from '@/lib/axios';[m
+[32m+[m
+[32m+[m
+[32m+[m[32mconst SellerStoreReviewService = {[m
+[32m+[m
+[32m+[m[32m    async approveSeller(userId: number) {[m
+[32m+[m[32m        return await axios.post(`/api/admin/sellers/${userId}/approve`);[m
+[32m+[m[32m    },[m
+[32m+[m
+[32m+[m[32m    async rejectSeller(userId: number, note?: string) {[m
+[32m+[m[32m        return await axios.post(`/api/admin/sellers/${userId}/reject`, {[m
+[32m+[m[32m            admin_notes: note,[m
+[32m+[m[32m        });[m
+[32m+[m[32m    },[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m[32mexport default SellerStoreReviewService;[m[41m [m
+\ No newline at end of file[m
+[1mdiff --git a/resources/js/services/UserService.ts b/resources/js/services/UserService.ts[m
+[1mindex 6ed92b6..12e4deb 100644[m
+[1m--- a/resources/js/services/UserService.ts[m
+[1m+++ b/resources/js/services/UserService.ts[m
+[36m@@ -1,4 +1,5 @@[m
+ import axios from '@/lib/axios';[m
+[32m+[m[32mimport type { Seller_Profile } from '@/types/sellerProfile';[m
+ [m
+ export interface User {[m
+     id: number;[m
+[36m@@ -8,6 +9,8 @@[m [mexport interface User {[m
+     is_active: boolean;[m
+     role: string;[m
+     created_at: string;[m
+[32m+[m
+[32m+[m[32m    seller_profile?: Seller_Profile | null;[m
+ }[m
+ [m
+ export interface UsersResponse {[m
+[36m@@ -25,6 +28,7 @@[m [minterface FetchUsersParams {[m
+     role?: string;[m
+     is_active?: boolean | 'all';[m
+     page?: number;[m
+[32m+[m[32m    seller_status?: string;[m
+ }[m
+ [m
+ const UserService = {[m
+[36m@@ -32,11 +36,16 @@[m [mconst UserService = {[m
+         const response = await axios.get('/api/admin/users', {[m
+             params,[m
+         });[m
+[31m-        console.log(response);[m
+[31m-        [m
+[32m+[m
+         return response.data;[m
+     },[m
+ [m
+[32m+[m[32m    async getUserById(id: number): Promise<User> {[m
+[32m+[m[32m        const response = await axios.get(`/api/admin/user/${id}`);[m
+[32m+[m
+[32m+[m[32m        return response.data.data; // ✅ FIX HERE[m
+[32m+[m[32m    },[m
+[32m+[m
+     async deleteUser(id: number) {[m
+         return await axios.delete(`/api/admin/users/${id}`);[m
+     },[m
+[1mdiff --git a/resources/js/store/features/notification/toast.ts b/resources/js/store/features/notification/toast.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..f65c53c[m
+[1m--- /dev/null[m
+[1m+++ b/resources/js/store/features/notification/toast.ts[m
+[36m@@ -0,0 +1,22 @@[m
+[32m+[m[32mimport { create } from 'zustand';[m
+[32m+[m
+[32m+[m[32mtype ToastType = 'success' | 'info' | 'warning' | 'error';[m
+[32m+[m
+[32m+[m[32minterface ToastState {[m
+[32m+[m[32m    open: boolean;[m
+[32m+[m[32m    message: string;[m
+[32m+[m[32m    type: ToastType;[m
+[32m+[m[32m    show: (message: string, type?: ToastType) => void;[m
+[32m+[m[32m    hide: () => void;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mexport const useToast = create<ToastState>((set) => ({[m
+[32m+[m[32m    open: false,[m
+[32m+[m[32m    message: '',[m
+[32m+[m[32m    type: 'success',[m
+[32m+[m
+[32m+[m[32m    show: (message, type = 'success') =>[m
+[32m+[m[32m        set({ open: true, message, type }),[m
+[32m+[m
+[32m+[m[32m    hide: () => set({ open: false }),[m
+[32m+[m[32m}));[m
+\ No newline at end of file[m
+[1mdiff --git a/resources/js/types/sellerProfile.ts b/resources/js/types/sellerProfile.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..89ff1eb[m
+[1m--- /dev/null[m
+[1m+++ b/resources/js/types/sellerProfile.ts[m
+[36m@@ -0,0 +1,11 @@[m
+[32m+[m[32mexport interface Seller_Profile {[m
+[32m+[m[32m    id: number;[m
+[32m+[m[32m    store_name: string;[m
+[32m+[m[32m    store_description: string;[m
+[32m+[m[32m    status: string;[m
+[32m+[m[32m    is_approved: boolean;[m
+[32m+[m[32m    business_license: string;[m
+[32m+[m[32m    bank_name: string;[m
+[32m+[m[32m    bank_account_name: string;[m
+[32m+[m[32m    bank_account_number: string;[m
+[32m+[m[32m}[m
+[1mdiff --git a/resources/js/types/statuslabel.ts b/resources/js/types/statuslabel.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..e69de29[m
+[1mdiff --git a/routes/api.php b/routes/api.php[m
+[1mindex a074f79..a61c737 100644[m
+[1m--- a/routes/api.php[m
+[1m+++ b/routes/api.php[m
+[36m@@ -44,14 +44,17 @@[m
+ Route::get('/categories/all', [AdminCategoryController::class, 'withoutpagingtion'])->name('categories.all');[m
+ Route::get('/categories/child', [AdminCategoryController::class, 'getAllChildCategory'])->name('categories.child');[m
+ [m
+[31m-Route::middleware(['auth:sanctum', 'auth.debug','verified'])->group(function () {[m
+[32m+[m[32mRoute::middleware(['auth:sanctum', 'auth.debug', 'verified'])->group(function () {[m
+ [m
+ [m
+     Route::middleware(['role:admin'])->prefix('admin')->name('admin.')->group(function () {[m
+         Route::get('/users', [AdminUserController::class, 'index']);[m
+         Route::put('/users/{user}', [AdminUserController::class, 'update'])->name('users.update');[m
+         Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');[m
+[32m+[m[32m        Route::get('/user/{id}', [AdminUserController::class, 'getUserById']);[m
+         Route::patch('/users/{user}/status', [AdminUserController::class, 'updateStatus'])->name('users.status');[m
+[32m+[m[32m        Route::post('/sellers/{user}/approve', [AdminUserController::class, 'approve']);[m
+[32m+[m[32m        Route::post('/sellers/{user}/reject', [AdminUserController::class, 'reject']);[m
+ [m
+         Route::get('/categories', [AdminCategoryController::class, 'index']);[m
+         Route::get('/categories/{category}', [AdminCategoryController::class, 'show'])->name('categories.show');[m
+[1mdiff --git a/routes/web.php b/routes/web.php[m
+[1mindex f8a5563..ca93bfd 100644[m
+[1m--- a/routes/web.php[m
+[1m+++ b/routes/web.php[m
+[36m@@ -13,6 +13,8 @@[m
+ [m
+ Route::inertia('/shop', 'shop/ShopListing')->name('shop');[m
+ // Route::innertia('/cart','shop/cart')->name('cart');[m
+[32m+[m[32mRoute::inertia('/shop/singleproduct', 'shop/SingleProduct')->name('singleproduct');[m
+[32m+[m
+ [m
+ // Main dashboard redirect route[m
+ Route::middleware(['auth', 'verified'])->group(function () {[m
+[36m@@ -46,6 +48,13 @@[m
+                 'categoryId' => $id[m
+             ]);[m
+         })->name('edit-category');[m
+[32m+[m[32m        Route::get('/seller/{id}/review', function ($id) {[m
+[32m+[m[32m            return Inertia::render('admin/User/Review', [[m
+[32m+[m[32m                'userId' => $id[m
+[32m+[m[32m            ]);[m
+[32m+[m[32m        })->name('review-seller');[m
+[32m+[m
+[32m+[m[41m        [m
+         Route::inertia('/products', 'admin/Products')->name('products');[m
+         Route::inertia('/settings', 'admin/Report')->name('report');[m
+         Route::inertia('/coupon', 'admin/Coupon')->name('coupon');[m
+[36m@@ -53,6 +62,7 @@[m
+ [m
+     // Seller routes[m
+     Route::middleware(['role:seller'])->prefix('seller')->name('seller.')->group(function () {[m
+[32m+[m[32m        Route::inertia('/store', 'seller/store/Store')->name('store');[m
+         Route::inertia('/dashboard', 'seller/dashboard')->name('dashboard');[m
+         Route::inertia('/products', 'seller/Product/Products')->name('products');[m
+         Route::inertia('/add-product', 'seller/Product/AddProduct')->name('add-product');[m
